@@ -180,6 +180,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <div class="iconrow" style="margin-bottom:14px">
     <button class="iconbtn chal" id="btn-sprint" onclick="startSprint()"><span>⏱️</span>60秒冲刺</button>
     <button class="iconbtn chal" id="btn-revenge" onclick="startRevenge()"><span>⚔️</span>错题复仇局</button>
+    <button class="iconbtn chal" id="btn-blind" onclick="startBlindExam()"><span>📝</span>盲答闯关</button>
   </div>
   <div class="iconrow">
     <button class="iconbtn" onclick="go('units')"><span>🗺️</span>单元地图</button>
@@ -208,6 +209,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <button class="quit" onclick="quitSession()">✕</button>
     <div class="pbar"><div id="sess-fill"></div></div>
     <div id="sprint-timer" class="sprint-timer" style="display:none"></div>
+    <div id="blind-progress" class="sprint-timer" style="display:none"></div>
     <span class="shield-chip" id="shield-el"></span>
     <div class="combo" id="combo-el"></div>
   </div>
@@ -224,6 +226,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <button class="sbtn primary" id="btn-submit" onclick="submitSpell()" style="width:100%;padding:15px;font-size:18px;margin-top:6px">✓ 确定</button>
     <div class="srow">
       <button class="sbtn" id="btn-hint" onclick="useHint()">💡 提示</button>
+      <button class="sbtn" id="btn-flag" onclick="toggleFlag()" style="display:none">🏳️ 标记不确定</button>
       <button class="sbtn" onclick="speakCur()">🔊 听发音</button>
       <button class="sbtn" id="btn-kb-toggle" onclick="toggleKeyboard()">⌨️ 键盘</button>
     </div>
@@ -246,6 +249,29 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     </div>
     <button class="sbtn primary" style="width:100%;padding:15px;font-size:17px" onclick="go('home');renderHome()">回到首页 🏠</button>
   </div>
+</div>
+
+<!-- ============ BLIND EXAM RESULT ============ -->
+<div class="screen" id="scr-blindresult">
+  <div class="card result">
+    <div class="big" id="bx-emoji">📝</div>
+    <h2 id="bx-title">交卷啦！</h2>
+    <p id="bx-sub" style="color:#7a89a3"></p>
+    <div class="rstats">
+      <div class="chip">✅<b id="bx-right">0</b><i>答对</i></div>
+      <div class="chip">❌<b id="bx-wrong">0</b><i>答错</i></div>
+      <div class="chip">⭐<b id="bx-xp">0</b><i>获得经验</i></div>
+    </div>
+    <button class="sbtn primary" style="width:100%;padding:14px;font-size:16px;margin-bottom:8px" onclick="openBlindReview()">📋 查看错题解析</button>
+    <button class="sbtn" id="bx-revenge-btn" style="width:100%;padding:14px;font-size:16px;margin-bottom:8px;color:#e04444" onclick="blindRevengeAgain()">⚔️ 错题再战</button>
+    <button class="sbtn" style="width:100%;padding:14px;font-size:16px" onclick="go('home');renderHome()">回到首页 🏠</button>
+  </div>
+</div>
+
+<!-- ============ BLIND EXAM REVIEW ============ -->
+<div class="screen" id="scr-blindreview">
+  <div class="topbar"><button class="back" onclick="backToBlindResult()">←</button><h2>错题解析 📋</h2></div>
+  <div class="card" id="blind-review-list"></div>
 </div>
 
 <!-- ============ STATS ============ -->
@@ -470,6 +496,8 @@ if(S.wrongPool===undefined)S.wrongPool={};
 if(S.sprintBest===undefined)S.sprintBest=0;
 if(S.revengeFixed===undefined)S.revengeFixed=0;
 if(S.tierBadges===undefined)S.tierBadges={};
+if(S.blindDone===undefined)S.blindDone=0;
+if(S.blindHighScore===undefined)S.blindHighScore=0;
 function save(){localStorage.setItem(KEY,JSON.stringify(S))}
 function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function addDays(n){const d=new Date();d.setDate(d.getDate()+n);return todayStr(d)}
@@ -568,6 +596,8 @@ const TIER_BADGES=[
  {id:'t2',e:'🔥',n:'坚持不懈',metric:()=>S.streak,tiers:[3,7,21]},
  {id:'t3',e:'⏱️',n:'冲刺高手',metric:()=>S.sprintBest,tiers:[5,10,15]},
  {id:'t4',e:'⚔️',n:'错题复仇者',metric:()=>S.revengeFixed,tiers:[3,10,25]},
+ {id:'t5',e:'📝',n:'盲答新星',metric:()=>S.blindDone||0,tiers:[3,10,25]},
+ {id:'t6',e:'🎓',n:'盲答大师',metric:()=>S.blindHighScore||0,tiers:[1,5,15]},
 ];
 function tierOf(tb){const v=tb.metric();let t=0;tb.tiers.forEach((th,i)=>{if(v>=th)t=i+1});return t;}
 function checkTierBadges(){
@@ -637,7 +667,7 @@ function missionStatus(){
   const m1={label:`学习新词 ${Math.min(day.n,g.newwords)}/${g.newwords}`,done:day.n>=g.newwords};
   const totalQ=day.r+day.w,acc=totalQ?day.r/totalQ:0;
   const m2={label:`答题 ${Math.min(totalQ,g.accQ)}/${g.accQ} 且正确率≥${Math.round(g.accMin*100)}%`,done:totalQ>=g.accQ&&acc>=g.accMin};
-  const m3={label:'完成1次冲刺或错题复仇局',done:!!day.challengeDone};
+  const m3={label:'完成1次冲刺/复仇局/盲答闯关',done:!!day.challengeDone};
   const list=[m1,m2,m3];
   return {list,finished:list.filter(x=>x.done).length,claimed:S.missions.claimed};
 }
@@ -688,6 +718,8 @@ function renderHome(){
   rb.innerHTML=`<span>⚔️</span>错题复仇局${wrongN?`(${wrongN})`:''}`;
   const sb=document.getElementById('btn-sprint');
   sb.disabled=learnedCount()<5;
+  const xb=document.getElementById('btn-blind');
+  xb.disabled=learnedCount()<10;
 }
 function renderMissionCard(){
   const st=missionStatus();
@@ -780,16 +812,125 @@ function startSprint(){
   startSprintTimer();
   nextCard();
 }
-function startRevenge(){
-  const ids=Object.keys(S.wrongPool);
-  if(!ids.length){toast('太棒了，现在没有错题需要复仇！');return}
-  shuffle(ids);
-  const items=ids.map(id=>{const[a,b]=id.split('-');return{id,w:UNITS[+a].w[+b],mode:'revenge',phase:'spell'}});
+function startRevenge(ids){
+  const list=(ids&&ids.length)?ids.slice():Object.keys(S.wrongPool);
+  if(!list.length){toast('太棒了，现在没有错题需要复仇！');return}
+  shuffle(list);
+  const items=list.map(id=>{const[a,b]=id.split('-');return{id,w:UNITS[+a].w[+b],mode:'revenge',phase:'spell'}});
   SES={queue:items,total:items.length,right:0,wrong:0,xp:0,mode:'revenge'};
   SES.board=makeBoard(items.length);
   IN_SESSION=true;PENDING_BADGES=[];
   go('sess');nextCard();
 }
+let LAST_BLIND_WRONG=[];
+function startBlindExam(){
+  if(learnedCount()<10){toast('先学会至少10个单词，再来挑战盲答闯关吧！');return}
+  const ids=Object.keys(S.w);shuffle(ids);
+  const n=Math.min(20,ids.length);
+  const pool=ids.slice(0,n).map(id=>{const[a,b]=id.split('-');return{id,w:UNITS[+a].w[+b],phase:'spell'}});
+  SES={mode:'blind',pool,idx:0,answers:[],total:n,xp:0};
+  IN_SESSION=true;PENDING_BADGES=[];
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('scr-sess').classList.add('on');
+  window.scrollTo(0,0);
+  nextBlindQuestion();
+}
+function nextBlindQuestion(){
+  CUR=SES.pool[SES.idx];
+  document.getElementById('fb').textContent='';document.getElementById('fb').className='fb';
+  document.getElementById('boardwrap').style.display='none';
+  document.getElementById('sess-fill').style.width=(SES.idx/SES.total*100)+'%';
+  document.getElementById('combo-el').textContent='';
+  document.getElementById('shield-el').textContent='';
+  document.getElementById('sprint-timer').style.display='none';
+  const bp=document.getElementById('blind-progress');
+  bp.style.display='inline-block';bp.textContent=`📝 ${SES.idx+1}/${SES.total}`;
+  showSpell();
+}
+function toggleFlag(){
+  if(!CUR)return;
+  CUR.flagged=!CUR.flagged;
+  document.getElementById('btn-flag').textContent=CUR.flagged?'🚩 已标记':'🏳️ 标记不确定';
+  beep('tap');
+}
+function blindSubmit(){
+  if(!CUR||CUR._locked)return;
+  CUR._locked=true;
+  const inp=document.getElementById('spell-input');
+  const typed=inp.value.toLowerCase().replace(/[^a-z]/g,'');
+  SES.answers.push({id:CUR.id,w:CUR.w,given:typed,flagged:!!CUR.flagged});
+  SES.idx++;
+  const fb=document.getElementById('fb');
+  fb.textContent='已记录，下一题 →';fb.className='fb';
+  setTimeout(()=>{
+    if(SES.idx>=SES.pool.length){finishBlindExam();return}
+    nextBlindQuestion();
+  },500);
+}
+function finishBlindExam(){
+  IN_SESSION=false;
+  const day=markActivity();
+  let right=0;
+  SES.answers.forEach(a=>{
+    const target=a.w[0].toLowerCase().replace(/[^a-z]/g,'');
+    const ok=a.given===target;
+    a.ok=ok;
+    if(ok){right++;day.r++}else{day.w++}
+    const st=S.w[a.id];
+    if(st){
+      if(ok){const nb=Math.min(st.b+1,7);st.b=nb;st.d=addDays(INTERVALS[nb]);st.r++}
+      else{st.b=1;st.d=addDays(1);st.wr=(st.wr||0)+1;S.rev++;day.rv++}
+    }
+    if(ok)fixWrongInPool(a.id);
+    else S.wrongPool[a.id]=(S.wrongPool[a.id]||0)+1;
+  });
+  const total=SES.answers.length;
+  const acc=total?right/total:0;
+  let xp=right*10+20;
+  if(acc>=0.9)xp+=40;else if(acc>=0.8)xp+=20;
+  S.xp+=xp;SES.xp=xp;SES.right=right;SES.wrong=total-right;
+  day.challengeDone=true;
+  S.blindDone=(S.blindDone||0)+1;
+  if(acc>=0.9)S.blindHighScore=(S.blindHighScore||0)+1;
+  LAST_BLIND_WRONG=SES.answers.filter(a=>!a.ok).map(a=>a.id);
+  save();checkBadges();
+  renderBlindResult(acc);
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('scr-blindresult').classList.add('on');
+  window.scrollTo(0,0);
+  document.getElementById('blind-progress').style.display='none';
+  const pend=PENDING_BADGES.slice();PENDING_BADGES=[];
+  if(pend.length)setTimeout(()=>pend.forEach(enqueueBadge),600);
+}
+function renderBlindResult(acc){
+  document.getElementById('bx-emoji').textContent=acc>=0.9?'🏆':acc>=0.8?'🎉':acc>=0.6?'📝':'💪';
+  document.getElementById('bx-title').textContent=`交卷啦！正确率 ${Math.round(acc*100)}%`;
+  document.getElementById('bx-sub').textContent=acc>=0.9?'满分学霸操作！':acc>=0.8?'非常棒，继续保持！':'没关系，来看看错在哪里吧';
+  document.getElementById('bx-right').textContent=SES.right;
+  document.getElementById('bx-wrong').textContent=SES.wrong;
+  document.getElementById('bx-xp').textContent='+'+SES.xp;
+  document.getElementById('bx-revenge-btn').style.display=SES.wrong>0?'block':'none';
+  if(acc===1){confetti();beep('win')}
+}
+function openBlindReview(){
+  const box=document.getElementById('blind-review-list');box.innerHTML='';
+  SES.answers.forEach(a=>{
+    const ipa=ipaOf(a.w[0]);
+    const d=document.createElement('div');d.className='wline';
+    d.innerHTML=`<span class="we" style="min-width:130px">${a.w[0]}${ipa?`<i class="wipa">/${ipa}/</i>`:''}</span>
+      <span class="wc">${a.w[2]}<br><b style="color:${a.ok?'#149c66':'#e04444'}">你写：${a.given||'（空）'}</b>${a.ok?'':' <span style="color:#8a97ad">'+'正确：'+a.w[0]+'</span>'}</span>
+      <span style="font-size:18px">${a.ok?'✅':'❌'}</span>`;
+    box.appendChild(d);
+  });
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('scr-blindreview').classList.add('on');
+  window.scrollTo(0,0);
+}
+function backToBlindResult(){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('scr-blindresult').classList.add('on');
+}
+function blindRevengeAgain(){startRevenge(LAST_BLIND_WRONG.slice())}
 let sprintInterval=null;
 function startSprintTimer(){
   clearInterval(sprintInterval);
@@ -837,7 +978,17 @@ function renderBoard(){
   b.style.gridTemplateColumns=`repeat(${cols},1fr)`;
   b.innerHTML=html;
 }
-function quitSession(){ask('要退出本次练习吗？<br>已完成的进度会保存哦 💾','退出',()=>endSession(true))}
+function quitSession(){
+  if(SES&&SES.mode==='blind'){
+    ask('要放弃本次盲答闯关吗？<br>本局不会计分哦','放弃',()=>{
+      IN_SESSION=false;
+      document.getElementById('blind-progress').style.display='none';
+      go('home');renderHome();
+    });
+    return;
+  }
+  ask('要退出本次练习吗？<br>已完成的进度会保存哦 💾','退出',()=>endSession(true));
+}
 
 let CUR=null,ANSWER='',SLOTS=[],POS=0,FIRST=true,HINTS=0,RETRY=0;
 function nextCard(){
@@ -896,6 +1047,11 @@ function showSpell(){
   inp.oninput=syncInputToTiles;
   inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submitSpell()}};
   setTimeout(()=>inp.focus(),50);
+  const blind=SES&&SES.mode==='blind';
+  document.getElementById('btn-hint').style.display=blind?'none':'';
+  const flagBtn=document.getElementById('btn-flag');
+  flagBtn.style.display=blind?'block':'none';
+  if(blind)flagBtn.textContent=CUR.flagged?'🚩 已标记':'🏳️ 标记不确定';
 }
 function toggleKeyboard(){
   S.set.kbMode=!S.set.kbMode;save();
@@ -916,7 +1072,7 @@ function syncInputToTiles(){
     s.val=ch;s.el.textContent=ch;s.el.classList.remove('ghost');
   });
   POS=Math.min(letters.length,SLOTS.length);markCursor();
-  if(letters.length>=SLOTS.length)setTimeout(()=>{if(CUR&&!CUR._locked)check()},250);
+  if(letters.length>=SLOTS.length)setTimeout(()=>{if(CUR&&!CUR._locked){if(SES&&SES.mode==='blind')blindSubmit();else check();}},250);
 }
 function deleteLast(){
   if(!CUR||CUR.phase!=='spell')return;
@@ -927,7 +1083,7 @@ function deleteLast(){
   inp.focus();
 }
 function useHint(){
-  if(!CUR||CUR.phase!=='spell')return;
+  if(!CUR||CUR.phase!=='spell'||(SES&&SES.mode==='blind'))return;
   const inp=document.getElementById('spell-input');
   const target=letterAnswer();
   const typed=inp.value.toLowerCase().replace(/[^a-z]/g,'');
@@ -939,7 +1095,11 @@ function useHint(){
   document.getElementById('fb').className='fb';
   inp.focus();
 }
-function submitSpell(){if(CUR&&CUR.phase==='spell')check();}
+function submitSpell(){
+  if(!CUR||CUR.phase!=='spell')return;
+  if(SES&&SES.mode==='blind'){blindSubmit();return;}
+  check();
+}
 function check(){
   if(!CUR||CUR._locked)return;
   CUR._locked=true;
