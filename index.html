@@ -80,11 +80,9 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 .fb{min-height:34px;text-align:center;font-size:17px;font-weight:700;margin-bottom:6px}
 .fb.good{color:#149c66}.fb.badc{color:#e04444}
-.kb{margin-top:4px}
-.kbrow{display:flex;justify-content:center;gap:5px;margin-bottom:7px}
-.key{flex:1;max-width:56px;height:52px;border:none;border-radius:10px;background:#fff;font-size:20px;font-weight:700;color:#2b3a55;box-shadow:0 3px 0 #ccd6e4;cursor:pointer}
-.key:active{transform:translateY(2px);box-shadow:0 1px 0 #ccd6e4}
-.key.wide{max-width:86px;background:#ffe9d2}
+.spell-input{width:100%;box-sizing:border-box;font-size:26px;text-align:center;letter-spacing:4px;padding:16px 10px;border:3px solid #dbe4f0;border-radius:16px;background:#fbfdff;color:#2b3a55;font-weight:700;outline:none;-webkit-user-select:text;user-select:text}
+.spell-input:focus{border-color:#4a6cf7;background:#fff}
+.spell-hint{text-align:center;font-size:12px;color:#9aa8bf;margin-top:6px}
 .srow{display:flex;gap:8px;margin-top:10px}
 .sbtn{flex:1;border:none;border-radius:14px;padding:13px;font-size:16px;font-weight:700;cursor:pointer;background:#fff;color:#4a6cf7;box-shadow:0 3px 0 #ccd6e4}
 .sbtn.primary{background:linear-gradient(135deg,#4a6cf7,#7a5cff);color:#fff;box-shadow:0 3px 0 #3a55c4}
@@ -179,12 +177,12 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <div class="fb" id="fb"></div>
   <div id="spell-area">
     <div class="tiles" id="tiles"></div>
-    <div class="kb" id="kb"></div>
+    <input id="spell-input" class="spell-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
+    <p class="spell-hint">✍️ 可以用 Apple Pencil 直接写字，或用系统键盘打字/语音</p>
     <button class="sbtn primary" id="btn-submit" onclick="submitSpell()" style="width:100%;padding:15px;font-size:18px;margin-top:6px">✓ 确定</button>
     <div class="srow">
       <button class="sbtn" id="btn-hint" onclick="useHint()">💡 提示</button>
-      <button class="sbtn" onclick="speakCur()">🔊 再听</button>
-      <button class="sbtn" id="btn-voice" onclick="onVoice()">🎤 说单词</button>
+      <button class="sbtn" onclick="speakCur()">🔊 听发音</button>
     </div>
   </div>
   <div id="present-area" style="display:none">
@@ -632,57 +630,52 @@ function showSpell(){
     box.appendChild(t);
   });
   POS=0;markCursor();
-  buildKB();
-  speak(ANSWER);
+  const inp=document.getElementById('spell-input');
+  inp.value='';
+  inp.oninput=syncInputToTiles;
+  inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submitSpell()}};
+  setTimeout(()=>inp.focus(),50);
 }
 function markCursor(){SLOTS.forEach((s,j)=>s.el.classList.toggle('cur',j===POS))}
-function buildKB(){
-  const kb=document.getElementById('kb');
-  if(kb.dataset.built)return;
-  kb.dataset.built='1';
-  const rows=['qwertyuiop','asdfghjkl','zxcvbnm'];
-  kb.innerHTML=rows.map((r,ri)=>`<div class="kbrow">${ri===2?'<button class="key wide" data-k="BS">⌫</button>':''}${[...r].map(c=>`<button class="key" data-k="${c}">${c}</button>`).join('')}${ri===2?'<button class="key wide" data-k="BS2">⌫</button>':''}</div>`).join('');
-  // 只保留右侧退格
-  kb.querySelector('[data-k="BS"]').remove();
-  kb.querySelectorAll('.key').forEach(k=>{
-    k.addEventListener('pointerdown',e=>{e.preventDefault();onKey(k.dataset.k==='BS2'?'BS':k.dataset.k)});
-  });
-}
-function onKey(k){
+function letterAnswer(){return ANSWER.toLowerCase().replace(/[^a-z]/g,'')}
+function syncInputToTiles(){
   if(!CUR||CUR.phase!=='spell')return;
-  beep('tap');
-  if(k==='BS'){
-    if(POS>0||SLOTS[POS]&&SLOTS[POS].val){
-      let j=(SLOTS[POS]&&SLOTS[POS].val)?POS:POS-1;
-      if(j>=0){SLOTS[j].val='';SLOTS[j].el.textContent='';SLOTS[j].el.classList.remove('ghost');POS=j;markCursor()}
-    }
-    return;
-  }
-  if(POS>=SLOTS.length)return;
-  SLOTS[POS].val=k;SLOTS[POS].el.textContent=k;SLOTS[POS].el.classList.remove('ghost');
-  POS++;markCursor();
-  if(SLOTS.every(s=>s.val))setTimeout(check,120);
+  const inp=document.getElementById('spell-input');
+  const letters=[...inp.value.toLowerCase().replace(/[^a-z]/g,'')];
+  SLOTS.forEach((s,i)=>{
+    const ch=letters[i]||'';
+    s.val=ch;s.el.textContent=ch;s.el.classList.remove('ghost');
+  });
+  POS=Math.min(letters.length,SLOTS.length);markCursor();
+  if(letters.length>=SLOTS.length)setTimeout(()=>{if(CUR&&!CUR._locked)check()},250);
 }
 function useHint(){
   if(!CUR||CUR.phase!=='spell')return;
-  if(POS>=SLOTS.length)return;
+  const inp=document.getElementById('spell-input');
+  const target=letterAnswer();
+  const typed=inp.value.toLowerCase().replace(/[^a-z]/g,'');
+  let i=0;while(i<typed.length&&i<target.length&&typed[i]===target[i])i++;
+  inp.value=target.slice(0,i+1);
+  syncInputToTiles();
   HINTS++;
-  onKey(SLOTS[POS].ch.toLowerCase());
   document.getElementById('fb').textContent='💡 提示已用，这个词要多练一遍哦';
   document.getElementById('fb').className='fb';
+  inp.focus();
 }
 function submitSpell(){if(CUR&&CUR.phase==='spell')check();}
 function check(){
   if(!CUR||CUR._locked)return;
   CUR._locked=true;
-  const ok=SLOTS.every(s=>s.val.toLowerCase()===s.ch.toLowerCase());
+  const inp=document.getElementById('spell-input');
+  const typed=inp.value.toLowerCase().replace(/[^a-z]/g,'');
+  const ok=typed.length>0&&typed===letterAnswer();
   const fb=document.getElementById('fb');
   if(ok){
     SLOTS.forEach(s=>{s.el.classList.remove('cur');s.el.classList.add('ok')});
     beep('ok');
     grade(true);
   }else{
-    SLOTS.forEach(s=>{if(s.val.toLowerCase()!==s.ch.toLowerCase())s.el.classList.add('bad');s.el.classList.remove('cur')});
+    SLOTS.forEach((s,i)=>{if((typed[i]||'')!==s.ch.toLowerCase())s.el.classList.add('bad');s.el.classList.remove('cur')});
     beep('bad');
     fb.innerHTML=`正确拼写：<b style="font-size:22px">${ANSWER}</b>`;
     fb.className='fb badc';
@@ -742,6 +735,7 @@ function grade(ok){
       // 错2次后给灰色描红
       if(CUR.retry>=2)SLOTS.forEach(s=>{s.el.textContent=s.ch.toLowerCase();s.el.classList.add('ghost')});
       POS=0;markCursor();CUR._locked=false;
+      const inp=document.getElementById('spell-input');inp.value='';inp.focus();
     },1600);
   }
 }
@@ -820,45 +814,6 @@ function resetAll(){
     localStorage.removeItem(KEY);location.reload();
   });
 }
-
-/* ================= 语音输入（说出单词，自动填写） ================= */
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let REC=null;
-function onVoice(){
-  if(!SR){toast('这个浏览器不支持语音输入哦');return;}
-  if(!CUR||CUR.phase!=='spell')return;
-  if(REC){try{REC.stop()}catch(e){}REC=null;return;}
-  const mic=document.getElementById('btn-voice');
-  try{
-    REC=new SR();REC.lang='en-US';REC.maxAlternatives=1;REC.interimResults=false;
-    mic.textContent='🎙️ 听着…';
-    REC.onresult=e=>{
-      let heard='';for(let i=0;i<e.results.length;i++)heard+=e.results[i][0].transcript;
-      fillFromVoice(heard);
-    };
-    REC.onerror=ev=>{toast(ev.error==='not-allowed'?'请允许麦克风权限 🎤':'没听清，再试一次 🎤');};
-    REC.onend=()=>{mic.textContent='🎤 说单词';REC=null;};
-    REC.start();
-  }catch(err){mic.textContent='🎤 说单词';REC=null;toast('语音启动失败');}
-}
-function fillFromVoice(raw){
-  if(!CUR||CUR.phase!=='spell')return;
-  const letters=(raw||'').toLowerCase().replace(/[^a-z]/g,'');
-  if(!letters){toast('没听清，再试一次 🎤');return;}
-  SLOTS.forEach(s=>{s.val='';s.el.textContent='';s.el.classList.remove('ghost','ok','bad')});
-  for(let i=0;i<SLOTS.length&&i<letters.length;i++){SLOTS[i].val=letters[i];SLOTS[i].el.textContent=letters[i]}
-  POS=Math.min(letters.length,SLOTS.length);markCursor();
-  const fb=document.getElementById('fb');fb.textContent='🎤 听到：'+raw.trim();fb.className='fb';
-  if(SLOTS.every(s=>s.val))setTimeout(check,300);
-}
-if(!SR){const v=document.getElementById('btn-voice');if(v)v.style.display='none';}
-
-/* ================= 物理键盘支持（外接键盘） ================= */
-document.addEventListener('keydown',e=>{
-  if(!document.getElementById('scr-sess').classList.contains('on'))return;
-  if(/^[a-zA-Z]$/.test(e.key))onKey(e.key.toLowerCase());
-  else if(e.key==='Backspace')onKey('BS');
-});
 
 /* 启动 */
 go('home');
