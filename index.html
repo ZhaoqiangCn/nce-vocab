@@ -66,6 +66,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 @keyframes hop{0%{transform:translateY(0) scale(1.12)}40%{transform:translateY(-9px) scale(1.2)}100%{transform:translateY(0) scale(1.12)}}
 .qcard{background:#fff;border-radius:24px;padding:22px 16px;text-align:center;box-shadow:0 8px 22px rgba(60,90,140,.12);margin-bottom:12px;position:relative;min-height:170px}
 .pos{display:inline-block;background:#eef4ff;color:#4a6cf7;font-size:13px;padding:2px 10px;border-radius:99px;margin-bottom:8px}
+.ipa{font-size:15px;color:#9aa8bf;margin-bottom:4px;font-family:"Doulos SIL","Charis SIL","Segoe UI",serif}
 .cn{font-size:26px;font-weight:800;line-height:1.35}
 .en-big{font-size:40px;font-weight:800;letter-spacing:1px;margin:6px 0}
 .spk{background:#e8f6ff;border:none;font-size:24px;width:52px;height:52px;border-radius:50%;cursor:pointer;margin-top:12px}
@@ -113,6 +114,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 /* word sheet */
 .wline{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid #f0f3f8;font-size:16px}
 .wline .we{font-weight:800;min-width:110px}
+.wline .wipa{display:block;font-style:normal;font-weight:400;font-size:12px;color:#9aa8bf}
 .wline .wc{color:#5b6b88;font-size:14px;flex:1}
 .wline .ws{border:none;background:#e8f6ff;border-radius:8px;font-size:16px;width:34px;height:30px;cursor:pointer}
 .wline .lv{font-size:11px;color:#fff;background:#c3cede;border-radius:8px;padding:2px 6px}
@@ -177,12 +179,13 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <div class="fb" id="fb"></div>
   <div id="spell-area">
     <div class="tiles" id="tiles"></div>
-    <input id="spell-input" class="spell-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
-    <p class="spell-hint">✍️ 可以用 Apple Pencil 直接写字，或用系统键盘打字/语音</p>
+    <input id="spell-input" class="spell-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="none">
+    <p class="spell-hint" id="spell-hint">✍️ 用 Apple Pencil 直接在框里写字就行</p>
     <button class="sbtn primary" id="btn-submit" onclick="submitSpell()" style="width:100%;padding:15px;font-size:18px;margin-top:6px">✓ 确定</button>
     <div class="srow">
       <button class="sbtn" id="btn-hint" onclick="useHint()">💡 提示</button>
       <button class="sbtn" onclick="speakCur()">🔊 听发音</button>
+      <button class="sbtn" id="btn-kb-toggle" onclick="toggleKeyboard()">⌨️ 键盘</button>
     </div>
   </div>
   <div id="present-area" style="display:none">
@@ -334,11 +337,89 @@ const UNITS=[
 ];
 const TOTAL_WORDS=UNITS.reduce((s,u)=>s+u.w.length,0);
 
+/* 英式国际音标（IPA），按单词小写形式索引；词组一般不标注 */
+const IPA={
+"excuse":"ɪkˈskjuːz","me":"miː","yes":"jes","is":"ɪz","this":"ðɪs","handbag":"ˈhændbæg","pardon":"ˈpɑːdn","it":"ɪt","pen":"pen","pencil":"ˈpensl","book":"bʊk","watch":"wɒtʃ","coat":"kəʊt","dress":"dres","skirt":"skɜːt","shirt":"ʃɜːt","car":"kɑː","house":"haʊs","your":"jɔː",
+"umbrella":"ʌmˈbrelə","please":"pliːz","here":"hɪə","my":"maɪ","ticket":"ˈtɪkɪt","number":"ˈnʌmbə","five":"faɪv","sorry":"ˈsɒri","sir":"sɜː","cloakroom":"ˈkləʊkruːm","suit":"suːt","school":"skuːl","teacher":"ˈtiːtʃə","son":"sʌn","daughter":"ˈdɔːtə",
+"mr.":"ˈmɪstə","good":"gʊd","morning":"ˈmɔːnɪŋ","miss":"mɪs","new":"njuː","student":"ˈstjuːdnt","french":"frentʃ","german":"ˈdʒɜːmən","nice":"naɪs","meet":"miːt","japanese":"ˌdʒæpəˈniːz","korean":"kəˈriːən","chinese":"ˌtʃaɪˈniːz","too":"tuː","swedish":"ˈswiːdɪʃ","english":"ˈɪŋglɪʃ","american":"əˈmerɪkən","italian":"ɪˈtæljən",
+"i":"aɪ","am":"æm","are":"ɑː","name":"neɪm","what":"wɒt","nationality":"ˌnæʃəˈnæləti","job":"dʒɒb","keyboard":"ˈkiːbɔːd","operator":"ˈɒpəreɪtə","engineer":"ˌendʒɪˈnɪə","policeman":"pəˈliːsmən","policewoman":"pəˈliːswʊmən","postman":"ˈpəʊstmən","nurse":"nɜːs","mechanic":"məˈkænɪk","hairdresser":"ˈheədresə","housewife":"ˈhaʊswaɪf","milkman":"ˈmɪlkmən",
+"hello":"həˈləʊ","hi":"haɪ","how":"haʊ","today":"təˈdeɪ","well":"wel","fine":"faɪn","thanks":"θæŋks","goodbye":"ˌgʊdˈbaɪ","see":"siː","fat":"fæt","woman":"ˈwʊmən","thin":"θɪn","tall":"tɔːl","short":"ʃɔːt","dirty":"ˈdɜːti","clean":"kliːn","hot":"hɒt","cold":"kəʊld","old":"əʊld","young":"jʌŋ","busy":"ˈbɪzi","lazy":"ˈleɪzi",
+"whose":"huːz","blue":"bluː","perhaps":"pəˈhæps","white":"waɪt","catch":"kætʃ","father":"ˈfɑːðə","mother":"ˈmʌðə","blouse":"blaʊz","sister":"ˈsɪstə","tie":"taɪ","brother":"ˈbrʌðə","his":"hɪz","her":"hɜː",
+"colour":"ˈkʌlə","green":"griːn","come":"kʌm","upstairs":"ˌʌpˈsteəz","smart":"smɑːt","hat":"hæt","same":"seɪm","lovely":"ˈlʌvli","case":"keɪs","carpet":"ˈkɑːpɪt","dog":"dɒg",
+"customs":"ˈkʌstəmz","officer":"ˈɒfɪsə","girl":"gɜːl","danish":"ˈdeɪnɪʃ","friend":"frend","norwegian":"nɔːˈwiːdʒən","passport":"ˈpɑːspɔːt","brown":"braʊn","tourist":"ˈtʊərɪst","russian":"ˈrʌʃn","dutch":"dʌtʃ","these":"ðiːz","red":"red","grey":"greɪ","yellow":"ˈjeləʊ","black":"blæk","orange":"ˈɒrɪndʒ",
+"employee":"ɪmˈplɔɪiː","hard-working":"ˌhɑːdˈwɜːkɪŋ","man":"mæn","office":"ˈɒfɪs","assistant":"əˈsɪstənt",
+"matter":"ˈmætə","children":"ˈtʃɪldrən","tired":"ˈtaɪəd","boy":"bɔɪ","thirsty":"ˈθɜːsti","mum":"mʌm","right":"raɪt","big":"bɪg","small":"smɔːl","open":"ˈəʊpən","shut":"ʃʌt","light":"laɪt","heavy":"ˈhevi","long":"lɒŋ","shoe":"ʃuː","grandfather":"ˈgrænfɑːðə","grandmother":"ˈgrænmʌðə",
+"give":"gɪv","one":"wʌn","which":"wɪtʃ","empty":"ˈempti","full":"fʊl","large":"lɑːdʒ","little":"ˈlɪtl","sharp":"ʃɑːp","blunt":"blʌnt","box":"bɒks","glass":"glɑːs","cup":"kʌp","bottle":"ˈbɒtl","tin":"tɪn","knife":"naɪf","fork":"fɔːk","spoon":"spuːn",
+"on":"ɒn","shelf":"ʃelf","desk":"desk","table":"ˈteɪbl","plate":"pleɪt","cupboard":"ˈkʌbəd","cigarette":"ˌsɪgəˈret","television":"ˈtelɪvɪʒn","floor":"flɔː","magazine":"ˌmægəˈziːn","bed":"bed","newspaper":"ˈnjuːzpeɪpə","stereo":"ˈsteriəʊ",
+"mrs.":"ˈmɪsɪz","kitchen":"ˈkɪtʃɪn","refrigerator":"rɪˈfrɪdʒəreɪtə","electric":"ɪˈlektrɪk","left":"left","cooker":"ˈkʊkə","middle":"ˈmɪdl","of":"ɒv","room":"ruːm","where":"weə","in":"ɪn",
+"near":"nɪə","window":"ˈwɪndəʊ","armchair":"ˈɑːmtʃeə","door":"dɔː","picture":"ˈpɪktʃə","wall":"wɔːl","trousers":"ˈtraʊzəz",
+"bedroom":"ˈbedruːm","untidy":"ʌnˈtaɪdi","must":"mʌst","air":"eə","put":"pʊt","clothes":"kləʊðz","wardrobe":"ˈwɔːdrəʊb","dust":"dʌst","sweep":"swiːp","read":"riːd","sharpen":"ˈʃɑːpən",
+"garden":"ˈgɑːdn","under":"ˈʌndə","tree":"triː","climb":"klaɪm","who":"huː","run":"rʌn","grass":"grɑːs","after":"ˈɑːftə","across":"əˈkrɒs","cat":"kæt","type":"taɪp","letter":"ˈletə","basket":"ˈbɑːskɪt","eat":"iːt","bone":"bəʊn","tooth":"tuːθ","cook":"kʊk","milk":"mɪlk","meal":"miːl","drink":"drɪŋk","tap":"tæp",
+"day":"deɪ","cloud":"klaʊd","sky":"skaɪ","sun":"sʌn","shine":"ʃaɪn","with":"wɪð","family":"ˈfæməli","walk":"wɔːk","over":"ˈəʊvə","bridge":"brɪdʒ","boat":"bəʊt","river":"ˈrɪvə","ship":"ʃɪp","aeroplane":"ˈeərəpleɪn","fly":"flaɪ","sleep":"sliːp","shave":"ʃeɪv","cry":"kraɪ","wash":"wɒʃ","wait":"weɪt","jump":"dʒʌmp",
+"photograph":"ˈfəʊtəgrɑːf","village":"ˈvɪlɪdʒ","valley":"ˈvæli","between":"bɪˈtwiːn","hill":"hɪl","another":"əˈnʌðə","wife":"waɪf","along":"əˈlɒŋ","bank":"bæŋk","water":"ˈwɔːtə","swim":"swɪm","building":"ˈbɪldɪŋ","park":"pɑːk","into":"ˈɪntə","beside":"bɪˈsaɪd","off":"ɒf",
+"work":"wɜːk","hard":"hɑːd","make":"meɪk","bookcase":"ˈbʊkkeɪs","hammer":"ˈhæmə","paint":"peɪnt","pink":"pɪŋk","favourite":"ˈfeɪvərɪt","homework":"ˈhəʊmwɜːk","listen":"ˈlɪsn","dish":"dɪʃ",
+"front":"frʌnt","careful":"ˈkeəfl","vase":"vɑːz","drop":"drɒp","flower":"ˈflaʊə","show":"ʃəʊ","send":"send","take":"teɪk",
+"cheese":"tʃiːz","bread":"bred","soap":"səʊp","chocolate":"ˈtʃɒklət","sugar":"ˈʃʊgə","coffee":"ˈkɒfi","tea":"tiː","tobacco":"təˈbækəʊ","bird":"bɜːd","any":"ˈeni","some":"sʌm",
+"kettle":"ˈketl","behind":"bɪˈhaɪnd","teapot":"ˈtiːpɒt","now":"naʊ","find":"faɪnd","boil":"bɔɪl",
+"can":"kæn","boss":"bɒs","minute":"ˈmɪnɪt","ask":"ɑːsk","handwriting":"ˈhændraɪtɪŋ","terrible":"ˈterəbl","lift":"lɪft","cake":"keɪk","biscuit":"ˈbɪskɪt",
+"like":"laɪk","want":"wɒnt","fresh":"freʃ","egg":"eg","butter":"ˈbʌtə","pure":"pjʊə","honey":"ˈhʌni","ripe":"raɪp","banana":"bəˈnɑːnə","jam":"dʒæm","sweet":"swiːt","choice":"tʃɔɪs","apple":"ˈæpl","wine":"waɪn","beer":"bɪə","blackboard":"ˈblækbɔːd",
+"butcher":"ˈbʊtʃə","meat":"miːt","beef":"biːf","lamb":"læm","husband":"ˈhʌzbənd","steak":"steɪk","mince":"mɪns","chicken":"ˈtʃɪkɪn","tell":"tel","truth":"truːθ","either":"ˈaɪðə","tomato":"təˈmɑːtəʊ","potato":"pəˈteɪtəʊ","cabbage":"ˈkæbɪdʒ","lettuce":"ˈletɪs","pea":"piː","bean":"biːn","pear":"peə","grape":"greɪp","peach":"piːtʃ",
+"greece":"griːs","climate":"ˈklaɪmət","country":"ˈkʌntri","pleasant":"ˈpleznt","weather":"ˈweðə","spring":"sprɪŋ","windy":"ˈwɪndi","warm":"wɔːm","rain":"reɪn","sometimes":"ˈsʌmtaɪmz","summer":"ˈsʌmə","autumn":"ˈɔːtəm","winter":"ˈwɪntə","snow":"snəʊ","january":"ˈdʒænjuəri","february":"ˈfebruəri","march":"mɑːtʃ","april":"ˈeɪprəl","may":"meɪ","june":"dʒuːn","july":"dʒʊˈlaɪ","august":"ˈɔːgəst","september":"sepˈtembə","october":"ɒkˈtəʊbə","november":"nəʊˈvembə","december":"dɪˈsembə",
+"mild":"maɪld","always":"ˈɔːlweɪz","north":"nɔːθ","east":"iːst","wet":"wet","west":"west","south":"saʊθ","season":"ˈsiːzn","best":"best","night":"naɪt","rise":"raɪz","early":"ˈɜːli","set":"set","late":"leɪt","interesting":"ˈɪntrəstɪŋ","subject":"ˈsʌbdʒɪkt","conversation":"ˌkɒnvəˈseɪʃn","england":"ˈɪŋglənd","france":"frɑːns","germany":"ˈdʒɜːməni","italy":"ˈɪtəli","norway":"ˈnɔːweɪ","russia":"ˈrʌʃə","spain":"speɪn","sweden":"ˈswiːdn","australia":"ɒˈstreɪliə","canada":"ˈkænədə","china":"ˈtʃaɪnə","india":"ˈɪndiə","japan":"dʒəˈpæn","korea":"kəˈriːə","thailand":"ˈtaɪlænd",
+"live":"lɪv","stay":"steɪ","home":"həʊm","housework":"ˈhaʊswɜːk","lunch":"lʌntʃ","afternoon":"ˌɑːftəˈnuːn","usually":"ˈjuːʒuəli","together":"təˈgeðə","evening":"ˈiːvnɪŋ","arrive":"əˈraɪv",
+"o'clock":"əˈklɒk","shop":"ʃɒp","moment":"ˈməʊmənt",
+"envelope":"ˈenvələʊp","size":"saɪz","pad":"pæd","glue":"gluː","chalk":"tʃɔːk","change":"tʃeɪndʒ",
+"feel":"fiːl","look":"lʊk","call":"kɔːl","doctor":"ˈdɒktə","telephone":"ˈtelɪfəʊn","remember":"rɪˈmembə","mouth":"maʊθ","tongue":"tʌŋ","bad":"bæd","news":"njuːz","headache":"ˈhedeɪk","aspirin":"ˈæsprɪn","earache":"ˈɪəreɪk","toothache":"ˈtuːθeɪk","dentist":"ˈdentɪst","medicine":"ˈmedsn","temperature":"ˈtemprətʃə","flu":"fluː","measles":"ˈmiːzlz","mumps":"mʌmps",
+"better":"ˈbetə","certainly":"ˈsɜːtnli","yet":"jet","rich":"rɪtʃ","food":"fuːd","remain":"rɪˈmeɪn","play":"pleɪ","match":"mætʃ","talk":"tɔːk","library":"ˈlaɪbrəri","drive":"draɪv","so":"səʊ","quickly":"ˈkwɪkli","break":"breɪk","noise":"nɔɪz",
+"dad":"dæd","key":"kiː","baby":"ˈbeɪbi","hear":"hɪə","enjoy":"ɪnˈdʒɔɪ","yourself":"jɔːˈself","ourselves":"ˌaʊəˈselvz","myself":"maɪˈself","themselves":"ðəmˈselvz","himself":"hɪmˈself","herself":"hɜːˈself",
+"greengrocer":"ˈgriːngrəʊsə","absent":"ˈæbsənt","monday":"ˈmʌndeɪ","tuesday":"ˈtjuːzdeɪ","wednesday":"ˈwenzdeɪ","thursday":"ˈθɜːzdeɪ","friday":"ˈfraɪdeɪ","saturday":"ˈsætədeɪ","sunday":"ˈsʌndeɪ","keep":"kiːp","spend":"spend","weekend":"ˌwiːkˈend","lucky":"ˈlʌki","church":"tʃɜːtʃ","dairy":"ˈdeəri","baker":"ˈbeɪkə","grocer":"ˈgrəʊsə","year":"jɪə",
+"race":"reɪs","town":"taʊn","crowd":"kraʊd","stand":"stænd","exciting":"ɪkˈsaɪtɪŋ","just":"dʒʌst","finish":"ˈfɪnɪʃ","winner":"ˈwɪnə","way":"weɪ","stationer":"ˈsteɪʃənə","denmark":"ˈdenmɑːk",
+"awful":"ˈɔːfl","time":"taɪm","answer":"ˈɑːnsə","last":"lɑːst","phone":"fəʊn","again":"əˈgen","say":"seɪ",
+"week":"wiːk","london":"ˈlʌndən","suddenly":"ˈsʌdənli","smile":"smaɪl","pleasantly":"ˈplezntli","understand":"ˌʌndəˈstænd","speak":"spiːk","hand":"hænd","pocket":"ˈpɒkɪt","phrase":"freɪz","slowly":"ˈsləʊli","hurriedly":"ˈhʌridli","cut":"kʌt","thirstily":"ˈθɜːstɪli","go":"gəʊ","greet":"griːt",
+"ago":"əˈgəʊ","buy":"baɪ","pair":"peə","fashion":"ˈfæʃn","uncomfortable":"ʌnˈkʌmftəbl","wear":"weə",
+"appointment":"əˈpɔɪntmənt","urgent":"ˈɜːdʒənt","till":"tɪl",
+"shopping":"ˈʃɒpɪŋ","list":"lɪst","vegetable":"ˈvedʒtəbl","need":"niːd","hope":"həʊp","thing":"θɪŋ","money":"ˈmʌni","groceries":"ˈgrəʊsəriz","fruit":"fruːt","stationery":"ˈsteɪʃənəri","newsagent":"ˈnjuːzeɪdʒənt","chemist":"ˈkemɪst",
+"bath":"bɑːθ","nearly":"ˈnɪəli","ready":"ˈredi","dinner":"ˈdɪnə","restaurant":"ˈrestrɒnt","roast":"rəʊst","breakfast":"ˈbrekfəst","haircut":"ˈheəkʌt","party":"ˈpɑːti",
+"holiday":"ˈhɒlədeɪ","mess":"mes","pack":"pæk","suitcase":"ˈsuːtkeɪs","leave":"liːv","already":"ɔːlˈredi",
+"paris":"ˈpærɪs","cinema":"ˈsɪnəmə","film":"fɪlm","beautiful":"ˈbjuːtɪfl","city":"ˈsɪti","never":"ˈnevə","ever":"ˈevə",
+"attendant":"əˈtendənt","bring":"brɪŋ","garage":"ˈgærɑːʒ","crash":"kræʃ","lamp-post":"ˈlæmppəʊst","repair":"rɪˈpeə","try":"traɪ",
+"believe":"bɪˈliːv","since":"sɪns","why":"waɪ","sell":"sel","because":"bɪˈkɒz","retire":"rɪˈtaɪə","cost":"kɒst","pound":"paʊnd","worth":"wɜːθ","penny":"ˈpeni",
+"still":"stɪl","move":"muːv","neighbour":"ˈneɪbə","person":"ˈpɜːsn","people":"ˈpiːpl","poor":"pɔː",
+"pilot":"ˈpaɪlət","return":"rɪˈtɜːn","tokyo":"ˈtəʊkiəʊ","madrid":"məˈdrɪd","athens":"ˈæθɪnz","berlin":"bɜːˈlɪn","geneva":"dʒɪˈniːvə","moscow":"ˈmɒskəʊ","rome":"rəʊm","seoul":"səʊl","stockholm":"ˈstɒkhəʊm","sydney":"ˈsɪdni",
+"train":"treɪn","platform":"ˈplætfɔːm","plenty":"ˈplenti","bar":"bɑː","station":"ˈsteɪʃn","porter":"ˈpɔːtə",
+"describe":"dɪˈskraɪb","zip":"zɪp","label":"ˈleɪbl","handle":"ˈhændl","address":"əˈdres","pence":"pens","belong":"bɪˈlɒŋ",
+"ow":"aʊ","slip":"slɪp","fall":"fɔːl","downstairs":"ˌdaʊnˈsteəz","hurt":"hɜːt","back":"bæk","help":"help","sure":"ʃʊə","x-ray":"ˈeksreɪ",
+"scotland":"ˈskɒtlənd","card":"kɑːd","youth":"juːθ","hotel":"həʊˈtel","association":"əˌsəʊsiˈeɪʃn","soon":"suːn","write":"raɪt",
+"exam":"ɪgˈzæm","pass":"pɑːs","mathematics":"ˌmæθəˈmætɪks","question":"ˈkwestʃən","easy":"ˈiːzi","enough":"ɪˈnʌf","paper":"ˈpeɪpə","fail":"feɪl","mark":"mɑːk","rest":"rest","difficult":"ˈdɪfɪkəlt","hate":"heɪt","low":"ləʊ","cheer":"tʃɪə","guy":"gaɪ","top":"tɒp","clever":"ˈklevə","stupid":"ˈstjuːpɪd","cheap":"tʃiːp","expensive":"ɪkˈspensɪv","stale":"steɪl","loud":"laʊd","high":"haɪ","soft":"sɒft","sour":"ˈsaʊə",
+"spell":"spel","intelligent":"ɪnˈtelɪdʒənt","mistake":"mɪˈsteɪk","present":"ˈpreznt","dictionary":"ˈdɪkʃənri","carry":"ˈkæri","correct":"kəˈrekt",
+"madam":"ˈmædəm","pretty":"ˈprɪti",
+"idea":"aɪˈdɪə","teaspoonful":"ˈtiːspuːnfʊl","less":"les","pity":"ˈpɪti","instead":"ɪnˈsted","advice":"ədˈvaɪs","most":"məʊst","least":"liːst","worse":"wɜːs","worst":"wɜːst",
+"model":"ˈmɒdl","afford":"əˈfɔːd","deposit":"dɪˈpɒzɪt","instalment":"ɪnˈstɔːlmənt","price":"praɪs","millionaire":"ˌmɪljəˈneə",
+"conductor":"kənˈdʌktə","fare":"feə","note":"nəʊt","passenger":"ˈpæsɪndʒə","none":"nʌn","neither":"ˈnaɪðə","tramp":"træmp","except":"ɪkˈsept",
+"anyone":"ˈeniwʌn","knock":"nɒk","everything":"ˈevriθɪŋ","quiet":"ˈkwaɪət","impossible":"ɪmˈpɒsəbl","invite":"ɪnˈvaɪt","anything":"ˈeniθɪŋ","nothing":"ˈnʌθɪŋ","lemonade":"ˌleməˈneɪd","joke":"dʒəʊk","asleep":"əˈsliːp","glasses":"ˈglɑːsɪz",
+"coin":"kɔɪn","swallow":"ˈswɒləʊ","later":"ˈleɪtə","toilet":"ˈtɔɪlət","ring":"rɪŋ",
+"story":"ˈstɔːri","happen":"ˈhæpən","thief":"θiːf","enter":"ˈentə","dark":"dɑːk","torch":"tɔːtʃ","voice":"vɔɪs","parrot":"ˈpærət",
+"customer":"ˈkʌstəmə","forget":"fəˈget","manager":"ˈmænɪdʒə","serve":"sɜːv","counter":"ˈkaʊntə","recognize":"ˈrekəgnaɪz","road":"rəʊd",
+"during":"ˈdjʊərɪŋ","trip":"trɪp","travel":"ˈtrævl","offer":"ˈɒfə","guess":"ges","grow":"grəʊ","beard":"bɪəd",
+"kitten":"ˈkɪtn","terribly":"ˈterəbli","dry":"draɪ","nuisance":"ˈnjuːsns","mean":"miːn","surprise":"səˈpraɪz","immediately":"ɪˈmiːdiətli",
+"famous":"ˈfeɪməs","actress":"ˈæktrəs","actor":"ˈæktə","wave":"weɪv","track":"træk",
+"mile":"maɪl","overtake":"ˌəʊvəˈteɪk","dream":"driːm","sign":"saɪn","charge":"tʃɑːdʒ",
+"darling":"ˈdɑːlɪŋ","egypt":"ˈiːdʒɪpt","abroad":"əˈbrɔːd","worry":"ˈwʌri",
+"reporter":"rɪˈpɔːtə","sensational":"senˈseɪʃənl","future":"ˈfjuːtʃə",
+"latest":"ˈleɪtɪst","introduce":"ˌɪntrəˈdjuːs",
+"football":"ˈfʊtbɔːl","pool":"puːl","win":"wɪn","world":"wɜːld","depend":"dɪˈpend","extra":"ˈekstrə",
+"overseas":"ˌəʊvəˈsiːz","engineering":"ˌendʒɪˈnɪərɪŋ","company":"ˈkʌmpəni","line":"laɪn",
+"excited":"ɪkˈsaɪtɪd","middle-aged":"ˌmɪdlˈeɪdʒd","opposite":"ˈɒpəzɪt","curiously":"ˈkjʊəriəsli","funny":"ˈfʌni","powder":"ˈpaʊdə","compact":"ˈkɒmpækt","kindly":"ˈkaɪndli","ugly":"ˈʌgli","amused":"əˈmjuːzd","embarrassed":"ɪmˈbærəst","worried":"ˈwʌrid",
+"regularly":"ˈregjələli","surround":"səˈraʊnd","wood":"wʊd","hundred":"ˈhʌndrəd","through":"θruː","visitor":"ˈvɪzɪtə","tidy":"ˈtaɪdi","litter":"ˈlɪtə","place":"pleɪs","throw":"θrəʊ","rubbish":"ˈrʌbɪʃ","count":"kaʊnt","cover":"ˈkʌvə","piece":"piːs","tyre":"ˈtaɪə","rusty":"ˈrʌsti","among":"əˈmʌŋ","prosecute":"ˈprɒsɪkjuːt"
+};
+function ipaOf(word){return IPA[word.toLowerCase()]||''}
+
 /* ================= 状态存取 ================= */
 const KEY='nce1_progress_v1';
 let S;
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.w)return d}catch(e){}return null}
-S=load()||{w:{},xp:0,badges:[],days:{},streak:0,lastDay:null,rev:0,combo:0,bestCombo:0,set:{n:10,rate:0.85,sound:true}};
+S=load()||{w:{},xp:0,badges:[],days:{},streak:0,lastDay:null,rev:0,combo:0,bestCombo:0,set:{n:10,rate:0.85,sound:true,kbMode:false}};
+if(S.set.kbMode===undefined)S.set.kbMode=false;
 function save(){localStorage.setItem(KEY,JSON.stringify(S))}
 function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function addDays(n){const d=new Date();d.setDate(d.getDate()+n);return todayStr(d)}
@@ -529,8 +610,9 @@ function openSheet(ui){
   u.w.forEach((w,i)=>{
     const st=S.w[ui+'-'+i];
     const lv=st?(st.b>=5?['熟',5]:st.b>=3?['稳',3]:['学',1]):['新',0];
+    const ipa=ipaOf(w[0]);
     const d=document.createElement('div');d.className='wline';
-    d.innerHTML=`<span class="we">${w[0]}</span><span class="wc">${w[1]} ${w[2]}</span><span class="lv l${lv[1]||''}">${lv[0]}</span><button class="ws">🔊</button>`;
+    d.innerHTML=`<span class="we">${w[0]}${ipa?`<i class="wipa">/${ipa}/</i>`:''}</span><span class="wc">${w[1]} ${w[2]}</span><span class="lv l${lv[1]||''}">${lv[0]}</span><button class="ws">🔊</button>`;
     d.querySelector('.ws').onclick=e=>{e.stopPropagation();speak(w[0])};
     box.appendChild(d);
   });
@@ -617,8 +699,9 @@ function speakCur(){speak(CUR.w[0])}
 function showSpell(){
   const w=CUR.w;
   FIRST=CUR.attempted?false:true;HINTS=0;RETRY=CUR.retry||0;
+  const ipa=ipaOf(w[0]);
   document.getElementById('qcard').innerHTML=
-    `<span class="pos">${w[1]||'词组'}</span><div class="cn">${w[2]}</div><button class="spk" onclick="speakCur()">🔊</button>`;
+    `<span class="pos">${w[1]||'词组'}</span>${ipa?`<div class="ipa">/${ipa}/</div>`:''}<div class="cn">${w[2]}</div><button class="spk" onclick="speakCur()">🔊</button>`;
   document.getElementById('present-area').style.display='none';
   document.getElementById('spell-area').style.display='block';
   ANSWER=w[0];SLOTS=[];POS=-1;
@@ -632,9 +715,20 @@ function showSpell(){
   POS=0;markCursor();
   const inp=document.getElementById('spell-input');
   inp.value='';
+  inp.setAttribute('inputmode',S.set.kbMode?'text':'none');
+  document.getElementById('btn-kb-toggle').textContent=S.set.kbMode?'✍️ 手写':'⌨️ 键盘';
+  document.getElementById('spell-hint').textContent=S.set.kbMode?'⌨️ 已切到系统键盘，可以打字或点麦克风说话':'✍️ 用 Apple Pencil 直接在框里写字就行';
   inp.oninput=syncInputToTiles;
   inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submitSpell()}};
   setTimeout(()=>inp.focus(),50);
+}
+function toggleKeyboard(){
+  S.set.kbMode=!S.set.kbMode;save();
+  const inp=document.getElementById('spell-input');
+  inp.setAttribute('inputmode',S.set.kbMode?'text':'none');
+  document.getElementById('btn-kb-toggle').textContent=S.set.kbMode?'✍️ 手写':'⌨️ 键盘';
+  document.getElementById('spell-hint').textContent=S.set.kbMode?'⌨️ 已切到系统键盘，可以打字或点麦克风说话':'✍️ 用 Apple Pencil 直接在框里写字就行';
+  inp.blur();setTimeout(()=>inp.focus(),50);
 }
 function markCursor(){SLOTS.forEach((s,j)=>s.el.classList.toggle('cur',j===POS))}
 function letterAnswer(){return ANSWER.toLowerCase().replace(/[^a-z]/g,'')}
