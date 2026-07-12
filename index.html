@@ -26,6 +26,15 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .iconrow{display:flex;gap:10px}
 .iconbtn{flex:1;background:#fff;border:none;border-radius:18px;padding:12px 6px;font-size:14px;color:#2b3a55;box-shadow:0 4px 10px rgba(60,90,140,.10);cursor:pointer}
 .iconbtn span{display:block;font-size:26px;margin-bottom:4px}
+.iconbtn.chal{background:linear-gradient(135deg,#fff0f5,#fff7e6);color:#c2410c;font-weight:700}
+.iconbtn.chal:disabled{opacity:.45;filter:grayscale(.5)}
+.mission-card{padding:16px 18px}
+.mission-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;color:#5b6b88}
+.mission-row .mk{width:20px;height:20px;border-radius:50%;background:#e7eef8;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px}
+.mission-row.done .mk{background:#3ecf8e;color:#fff}
+.mission-row.done span.mt{color:#2b3a55;text-decoration:line-through;text-decoration-color:#c3cede}
+.shield-chip{font-weight:800;color:#4a6cf7;font-size:14px;margin-right:6px}
+.sprint-timer{font-weight:800;color:#ff6b2c;font-size:16px;margin-right:6px;background:#fff3e0;padding:4px 10px;border-radius:99px}
 .hero{display:flex;align-items:center;gap:14px;margin-bottom:16px}
 .hero .fox{font-size:52px}
 .hero h1{font-size:22px}
@@ -110,6 +119,17 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .badge.got span{filter:none;opacity:1}
 .badge b{font-size:12px;display:block;margin-top:6px}
 .badge i{font-style:normal;font-size:10px;color:#8a97ad}
+/* tier badges */
+.tbadge{display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:12px 14px;margin-bottom:8px;box-shadow:0 3px 8px rgba(60,90,140,.08)}
+.tbadge .ticon{font-size:30px;flex-shrink:0}
+.tbadge .tinfo{flex:1;min-width:0}
+.tbadge .tinfo b{font-size:14px;display:block}
+.tbadge .tinfo i{font-style:normal;font-size:11px;color:#8a97ad}
+.tbadge .tbar{background:#edf1f7;height:7px;border-radius:99px;margin-top:5px;overflow:hidden}
+.tbadge .tbar div{height:100%;background:linear-gradient(90deg,#cd7f32,#f5b93c);border-radius:99px}
+.tdots{display:flex;gap:3px;flex-shrink:0}
+.tdots span{width:11px;height:11px;border-radius:50%;background:#e7eef8}
+.tdots span.on1{background:#cd7f32}.tdots span.on2{background:#b9c1cc}.tdots span.on3{background:#f5b93c}
 /* settings */
 .setrow{display:flex;align-items:center;justify-content:space-between;padding:12px 2px;border-bottom:1px solid #eef2f8;font-size:16px}
 .setrow select,.setrow input[type=range]{font-size:16px}
@@ -142,13 +162,25 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
     <div class="chip">🔥<b id="c-streak">0</b><i>连续天数</i></div>
     <div class="chip">📖<b id="c-learned">0</b><i>已学单词</i></div>
     <div class="chip">🏅<b id="c-master">0</b><i>已掌握</i></div>
+    <div class="chip">🛡️<b id="c-shield">0</b><i>护盾</i></div>
   </div>
   <div class="card">
     <div style="display:flex;justify-content:space-between;font-size:14px"><b id="lvl-name">Lv.1 新手上路</b><span id="lvl-xp" style="color:#8a97ad"></span></div>
     <div class="lvlbar"><div id="lvl-fill" style="width:0%"></div></div>
   </div>
+  <div class="card mission-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b style="font-size:15px">📋 今日任务</b><span id="mission-status" style="font-size:12px;color:#8a97ad"></span>
+    </div>
+    <div id="mission-list"></div>
+    <button class="sbtn primary" id="mission-claim" style="width:100%;padding:11px;margin-top:8px;display:none" onclick="claimMissionReward()">🎁 领取奖励</button>
+  </div>
   <button class="bigbtn btn-review" id="btn-review" onclick="startReview()">🔁 复习挑战<small id="due-hint"></small></button>
   <button class="bigbtn btn-learn" id="btn-learn" onclick="learnNext()">📚 学新单词<small id="learn-hint"></small></button>
+  <div class="iconrow" style="margin-bottom:14px">
+    <button class="iconbtn chal" id="btn-sprint" onclick="startSprint()"><span>⏱️</span>60秒冲刺</button>
+    <button class="iconbtn chal" id="btn-revenge" onclick="startRevenge()"><span>⚔️</span>错题复仇局</button>
+  </div>
   <div class="iconrow">
     <button class="iconbtn" onclick="go('units')"><span>🗺️</span>单元地图</button>
     <button class="iconbtn" onclick="go('stats')"><span>📊</span>我的统计</button>
@@ -175,9 +207,11 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
   <div class="sess-top">
     <button class="quit" onclick="quitSession()">✕</button>
     <div class="pbar"><div id="sess-fill"></div></div>
+    <div id="sprint-timer" class="sprint-timer" style="display:none"></div>
+    <span class="shield-chip" id="shield-el"></span>
     <div class="combo" id="combo-el"></div>
   </div>
-  <div class="boardwrap"><div class="board" id="board"></div></div>
+  <div class="boardwrap" id="boardwrap"><div class="board" id="board"></div></div>
   <div class="qcard" id="qcard"></div>
   <div class="fb" id="fb"></div>
   <div id="spell-area">
@@ -242,7 +276,10 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 <!-- ============ BADGES ============ -->
 <div class="screen" id="scr-badges">
   <div class="topbar"><button class="back" onclick="go('home')">←</button><h2>勋章墙 🏆</h2></div>
-  <div class="bgrid" id="badge-grid"></div>
+  <b style="font-size:14px;color:#5b6b88">挑战勋章（铜/银/金）</b>
+  <div id="tier-badge-list" style="margin:10px 0 18px"></div>
+  <b style="font-size:14px;color:#5b6b88">成就勋章</b>
+  <div class="bgrid" id="badge-grid" style="margin-top:10px"></div>
 </div>
 
 <!-- ============ SETTINGS ============ -->
@@ -426,6 +463,13 @@ let S;
 function load(){try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.w)return d}catch(e){}return null}
 S=load()||{w:{},xp:0,badges:[],days:{},streak:0,lastDay:null,rev:0,combo:0,bestCombo:0,set:{n:10,rate:0.85,sound:true,kbMode:false}};
 if(S.set.kbMode===undefined)S.set.kbMode=false;
+if(S.shields===undefined)S.shields=0;
+if(S.shieldDate===undefined)S.shieldDate=null;
+if(S.missions===undefined)S.missions=null;
+if(S.wrongPool===undefined)S.wrongPool={};
+if(S.sprintBest===undefined)S.sprintBest=0;
+if(S.revengeFixed===undefined)S.revengeFixed=0;
+if(S.tierBadges===undefined)S.tierBadges={};
 function save(){localStorage.setItem(KEY,JSON.stringify(S))}
 function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function addDays(n){const d=new Date();d.setDate(d.getDate()+n);return todayStr(d)}
@@ -519,6 +563,26 @@ const BADGES=[
  {id:'b12',e:'⭐',n:'首战告捷',d:'完成第一个单元',f:()=>doneUnits()>=1},
  {id:'b13',e:'🌟',n:'半程之星',d:'完成36个单元',f:()=>doneUnits()>=36},
 ];
+const TIER_BADGES=[
+ {id:'t1',e:'📚',n:'词汇大师',metric:()=>learnedCount(),tiers:[50,200,400]},
+ {id:'t2',e:'🔥',n:'坚持不懈',metric:()=>S.streak,tiers:[3,7,21]},
+ {id:'t3',e:'⏱️',n:'冲刺高手',metric:()=>S.sprintBest,tiers:[5,10,15]},
+ {id:'t4',e:'⚔️',n:'错题复仇者',metric:()=>S.revengeFixed,tiers:[3,10,25]},
+];
+function tierOf(tb){const v=tb.metric();let t=0;tb.tiers.forEach((th,i)=>{if(v>=th)t=i+1});return t;}
+function checkTierBadges(){
+  TIER_BADGES.forEach(tb=>{
+    const newTier=tierOf(tb);
+    const oldTier=S.tierBadges[tb.id]||0;
+    if(newTier>oldTier){
+      S.tierBadges[tb.id]=newTier;save();
+      const tierName=['','铜','银','金'][newTier];
+      const b={id:tb.id+'_'+newTier,e:tb.e,n:`${tb.n}·${tierName}`,d:`达到 ${tb.tiers[newTier-1]}`};
+      if(IN_SESSION){PENDING_BADGES.push(b);toast(`🏅 ${tierName}级勋章：${tb.n}`);beep('win');}
+      else enqueueBadge(b);
+    }
+  });
+}
 let PENDING_BADGES=[],badgeQueue=[];
 function checkBadges(){
   BADGES.forEach(b=>{
@@ -528,6 +592,7 @@ function checkBadges(){
       else enqueueBadge(b);
     }
   });
+  checkTierBadges();
 }
 function enqueueBadge(b){badgeQueue.push(b);if(badgeQueue.length===1)showBadgePop(b);}
 function showBadgePop(b){
@@ -552,6 +617,38 @@ function levelInfo(){
   return {lv,name:titles[Math.min(lv-1,titles.length-1)],cur:S.xp%200,need:200};
 }
 
+/* ================= 护盾 / 每日任务 / 错题池 ================= */
+function ensureDailyShield(){
+  const t=todayStr();
+  if(S.shieldDate!==t){S.shields=Math.min((S.shields||0)+1,2);S.shieldDate=t;save();}
+}
+function missionGoals(){
+  const lv=levelInfo().lv;
+  return {newwords:Math.min(5+lv,15),accQ:15,accMin:0.8,challenge:1};
+}
+function ensureDailyMissions(){
+  const t=todayStr();
+  if(!S.missions||S.missions.date!==t){S.missions={date:t,goals:missionGoals(),claimed:false};save();}
+}
+function missionStatus(){
+  ensureDailyMissions();
+  const day=S.days[S.missions.date]||{n:0,r:0,w:0,rv:0};
+  const g=S.missions.goals;
+  const m1={label:`学习新词 ${Math.min(day.n,g.newwords)}/${g.newwords}`,done:day.n>=g.newwords};
+  const totalQ=day.r+day.w,acc=totalQ?day.r/totalQ:0;
+  const m2={label:`答题 ${Math.min(totalQ,g.accQ)}/${g.accQ} 且正确率≥${Math.round(g.accMin*100)}%`,done:totalQ>=g.accQ&&acc>=g.accMin};
+  const m3={label:'完成1次冲刺或错题复仇局',done:!!day.challengeDone};
+  const list=[m1,m2,m3];
+  return {list,finished:list.filter(x=>x.done).length,claimed:S.missions.claimed};
+}
+function claimMissionReward(){
+  const st=missionStatus();
+  if(st.finished<2||st.claimed)return;
+  S.missions.claimed=true;S.xp+=120;save();
+  toast('🎁 今日任务奖励 +120 XP！');checkBadges();renderHome();
+}
+function fixWrongInPool(id){if(S.wrongPool[id])delete S.wrongPool[id];}
+
 /* ================= 导航 ================= */
 function go(name){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
@@ -566,12 +663,14 @@ function go(name){
 
 /* ================= 首页 ================= */
 function renderHome(){
+  ensureDailyShield();
   const h=new Date().getHours();
   document.getElementById('greet').textContent=h<12?'早上好呀！☀️':h<18?'下午好呀！🌤️':'晚上好呀！🌙';
   const due=dueIds().length;
   document.getElementById('c-streak').textContent=S.streak;
   document.getElementById('c-learned').textContent=learnedCount();
   document.getElementById('c-master').textContent=masterCount();
+  document.getElementById('c-shield').textContent=S.shields;
   const L=levelInfo();
   document.getElementById('lvl-name').textContent=`Lv.${L.lv} ${L.name}`;
   document.getElementById('lvl-xp').textContent=`${L.cur}/${L.need} XP`;
@@ -582,6 +681,25 @@ function renderHome(){
   const ui=firstIncompleteUnit();
   document.getElementById('learn-hint').textContent=ui<0?'全部单词都学完啦！':`下一站：Unit ${ui+1}（第${UNITS[ui].l}课）${UNITS[ui].t}`;
   document.getElementById('subgreet').textContent=due?'先复习，再学新词，效果最好哦':'今天也要加油背单词哦';
+  renderMissionCard();
+  const wrongN=Object.keys(S.wrongPool).length;
+  const rb=document.getElementById('btn-revenge');
+  rb.disabled=wrongN===0;
+  rb.innerHTML=`<span>⚔️</span>错题复仇局${wrongN?`(${wrongN})`:''}`;
+  const sb=document.getElementById('btn-sprint');
+  sb.disabled=learnedCount()<5;
+}
+function renderMissionCard(){
+  const st=missionStatus();
+  const box=document.getElementById('mission-list');box.innerHTML='';
+  st.list.forEach(m=>{
+    const d=document.createElement('div');d.className='mission-row'+(m.done?' done':'');
+    d.innerHTML=`<span class="mk">${m.done?'✓':''}</span><span class="mt">${m.label}</span>`;
+    box.appendChild(d);
+  });
+  document.getElementById('mission-status').textContent=`已完成 ${st.finished}/3`;
+  const claimBtn=document.getElementById('mission-claim');
+  claimBtn.style.display=(st.finished>=2&&!st.claimed)?'block':'none';
 }
 function learnNext(){const ui=firstIncompleteUnit();if(ui<0){toast('🎉 全书学完啦！');return}openSheet(ui)}
 
@@ -648,6 +766,46 @@ function startReview(){
   IN_SESSION=true;PENDING_BADGES=[];
   go('sess');nextCard();
 }
+function pickSprintItem(){
+  const ids=Object.keys(S.w);
+  const id=ids[Math.floor(Math.random()*ids.length)];
+  const[a,b]=id.split('-');
+  return{id,w:UNITS[+a].w[+b],mode:'sprint',phase:'spell'};
+}
+function startSprint(){
+  if(learnedCount()<5){toast('先学会至少5个单词，再来冲刺吧！');return}
+  SES={queue:[pickSprintItem()],total:null,right:0,wrong:0,xp:0,mode:'sprint',sprint:true,timeLeft:60};
+  IN_SESSION=true;PENDING_BADGES=[];
+  go('sess');
+  startSprintTimer();
+  nextCard();
+}
+function startRevenge(){
+  const ids=Object.keys(S.wrongPool);
+  if(!ids.length){toast('太棒了，现在没有错题需要复仇！');return}
+  shuffle(ids);
+  const items=ids.map(id=>{const[a,b]=id.split('-');return{id,w:UNITS[+a].w[+b],mode:'revenge',phase:'spell'}});
+  SES={queue:items,total:items.length,right:0,wrong:0,xp:0,mode:'revenge'};
+  SES.board=makeBoard(items.length);
+  IN_SESSION=true;PENDING_BADGES=[];
+  go('sess');nextCard();
+}
+let sprintInterval=null;
+function startSprintTimer(){
+  clearInterval(sprintInterval);
+  const el=document.getElementById('sprint-timer');
+  el.style.display='inline-block';
+  updateSprintTimerUI();
+  sprintInterval=setInterval(()=>{
+    SES.timeLeft--;
+    updateSprintTimerUI();
+    if(SES.timeLeft<=0){clearInterval(sprintInterval);sprintInterval=null;endSession(false);}
+  },1000);
+}
+function updateSprintTimerUI(){
+  const el=document.getElementById('sprint-timer');
+  if(el&&SES)el.textContent='⏱️ '+Math.max(SES.timeLeft,0)+'s';
+}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}}
 function makeBoard(n){const b=[];for(let i=0;i<n;i++)b.push({type:(i%5===4)?'gift':(i%3===1)?'coin':'word'});return b}
 function tileHTML(c,cleared){
@@ -684,12 +842,23 @@ function quitSession(){ask('要退出本次练习吗？<br>已完成的进度会
 let CUR=null,ANSWER='',SLOTS=[],POS=0,FIRST=true,HINTS=0,RETRY=0;
 function nextCard(){
   document.getElementById('fb').textContent='';document.getElementById('fb').className='fb';
-  if(!SES.queue.length){endSession(false);return}
+  if(SES.sprint){
+    if(SES.timeLeft<=0){endSession(false);return}
+    if(!SES.queue.length)SES.queue.push(pickSprintItem());
+  }else if(!SES.queue.length){endSession(false);return}
   CUR=SES.queue[0];
-  const done=SES.total-SES.queue.filter(q=>!q.counted).length;
-  document.getElementById('sess-fill').style.width=(Math.min(done,SES.total)/SES.total*100)+'%';
+  const boardwrap=document.getElementById('boardwrap');
+  if(SES.sprint){
+    boardwrap.style.display='none';
+    document.getElementById('sess-fill').style.width='100%';
+  }else{
+    boardwrap.style.display='';
+    const done=SES.total-SES.queue.filter(q=>!q.counted).length;
+    document.getElementById('sess-fill').style.width=(Math.min(done,SES.total)/SES.total*100)+'%';
+    renderBoard();
+  }
   document.getElementById('combo-el').textContent=S.combo>=2?`🔥x${S.combo}`:'';
-  renderBoard();
+  document.getElementById('shield-el').textContent=S.shields>0?`🛡️x${S.shields}`:'';
   if(CUR.phase==='present')showPresent();else showSpell();
 }
 function showPresent(){
@@ -808,13 +977,25 @@ function grade(ok){
         const nb=clean?Math.min(st.b+1,7):st.b;
         st.b=nb;st.d=addDays(INTERVALS[nb]);st.r++;
         gain=clean?8:4;
+      }else if(CUR.mode==='sprint'){
+        gain=12; // 冲刺模式不改动记忆曲线盒子，纯速度练习
+      }else if(CUR.mode==='revenge'){
+        if(!S.w[CUR.id]){S.w[CUR.id]={b:1,d:addDays(1),r:1,wr:0};day.n++}
+        else{const rst=S.w[CUR.id];const nb=clean?Math.min(rst.b+1,7):rst.b;rst.b=nb;rst.d=addDays(INTERVALS[nb]);rst.r++}
+        fixWrongInPool(CUR.id);S.revengeFixed=(S.revengeFixed||0)+1;
+        gain=clean?8:4;
       }else{ // quiz
         gain=3;
       }
-      if(S.combo>0&&S.combo%5===0){gain+=5;toast(`🔥 ${S.combo} 连对！额外 +5 XP`)}
-      const bt=SES.board&&SES.board[SES.total-SES.queue.length];
-      if(bt&&bt.type==='gift'){gain+=8;toast('🎁 打开宝箱，+8 XP！')}
-      else if(bt&&bt.type==='coin'){gain+=3;toast('🪙 捡到金币，+3 XP')}
+      const mult=S.combo>=8?1.5:S.combo>=3?1.2:1;
+      if(mult>1)gain=Math.round(gain*mult);
+      if(S.combo===3)toast('🔥 连击×3！经验加成 1.2倍');
+      if(S.combo===8)toast('🔥🔥 连击×8！经验加成 1.5倍');
+      if(!SES.sprint){
+        const bt=SES.board&&SES.board[SES.total-SES.queue.length];
+        if(bt&&bt.type==='gift'){gain+=8;toast('🎁 打开宝箱，+8 XP！')}
+        else if(bt&&bt.type==='coin'){gain+=3;toast('🪙 捡到金币，+3 XP')}
+      }
     }
     S.xp+=gain;SES.xp+=gain;
     if(gain){
@@ -826,33 +1007,63 @@ function grade(ok){
     fb.textContent=['真棒！🎉','好厉害！👍','完全正确！✨','拼得漂亮！🌟'][Math.floor(Math.random()*4)];
     fb.className='fb good';
     SES.queue.shift();
-    renderBoard();
+    if(!SES.sprint)renderBoard();
     save();checkBadges();
     setTimeout(nextCard,900);
   }else{
-    S.combo=0;
+    if(S.shields>0){
+      S.shields--;
+      toast('🛡️ 护盾帮你挡了一下，连击保住了！');
+    }else{
+      S.combo=0;
+    }
     if(!CUR.attempted){
       SES.wrong++;day.w++;
-      if(CUR.mode==='review'){st.b=1;st.d=addDays(1);st.wr++;S.rev++;day.rv++}
-      if(CUR.mode==='learn'&&!S.w[CUR.id]){/* 学习模式首错不入库，答对时才入库 */}
+      S.wrongPool[CUR.id]=(S.wrongPool[CUR.id]||0)+1;
+      if((CUR.mode==='review'||CUR.mode==='revenge')&&S.w[CUR.id]){
+        S.w[CUR.id].b=1;S.w[CUR.id].d=addDays(1);S.w[CUR.id].wr=(S.w[CUR.id].wr||0)+1;S.rev++;day.rv++;
+      }
     }
     CUR.attempted=true;CUR.retry=(CUR.retry||0)+1;
     save();
-    // 重拼同一个词
-    setTimeout(()=>{SLOTS.forEach(s=>{s.val='';s.el.textContent=s.el.classList.contains('fix')?s.el.textContent:'';s.el.classList.remove('bad','ok')});
-      // 错2次后给灰色描红
-      if(CUR.retry>=2)SLOTS.forEach(s=>{s.el.textContent=s.ch.toLowerCase();s.el.classList.add('ghost')});
-      POS=0;markCursor();CUR._locked=false;
-      const inp=document.getElementById('spell-input');inp.value='';inp.focus();
-    },1600);
+    if(SES.sprint){
+      // 冲刺模式：错了直接换下一个词，不占用宝贵的时间重拼
+      SES.queue.shift();
+      setTimeout(nextCard,1100);
+    }else{
+      // 重拼同一个词
+      setTimeout(()=>{SLOTS.forEach(s=>{s.val='';s.el.textContent=s.el.classList.contains('fix')?s.el.textContent:'';s.el.classList.remove('bad','ok')});
+        // 错2次后给灰色描红
+        if(CUR.retry>=2)SLOTS.forEach(s=>{s.el.textContent=s.ch.toLowerCase();s.el.classList.add('ghost')});
+        POS=0;markCursor();CUR._locked=false;
+        const inp=document.getElementById('spell-input');inp.value='';inp.focus();
+      },1600);
+    }
   }
 }
 function endSession(quit){
   IN_SESSION=false;
+  if(sprintInterval){clearInterval(sprintInterval);sprintInterval=null;}
+  const timerEl=document.getElementById('sprint-timer');if(timerEl)timerEl.style.display='none';
   const total=SES.right+SES.wrong;
+  if((SES.mode==='sprint'||SES.mode==='revenge')&&total>0){
+    const day=markActivity();day.challengeDone=true;
+  }
+  if(SES.mode==='sprint'){S.sprintBest=Math.max(S.sprintBest||0,SES.right);}
+  let doubled=false;
+  if(SES.mode==='revenge'&&!quit&&SES.wrong===0&&SES.right>0){
+    const bonus=SES.xp;S.xp+=bonus;SES.xp+=bonus;doubled=true;
+  }
   document.getElementById('res-emoji').textContent=quit?'💾':SES.wrong===0&&total>0?'🏆':'🎉';
-  document.getElementById('res-title').textContent=quit?'进度已保存':SES.wrong===0&&total>0?'全对！太厉害了！':'完成啦！';
-  document.getElementById('res-sub').textContent=SES.mode==='challenge'?'整篇课文都闯关完啦！明天记得回来复习 🌱':SES.mode==='review'?'记忆小种子又长大了一点 🌱':'温故而知新！';
+  document.getElementById('res-title').textContent=quit?'进度已保存':
+    SES.mode==='sprint'?`冲刺结束！答对 ${SES.right} 题`:
+    SES.mode==='revenge'?(SES.wrong===0&&total>0?'复仇成功，全部拿下！':'复仇完成'):
+    (SES.wrong===0&&total>0?'全对！太厉害了！':'完成啦！');
+  document.getElementById('res-sub').textContent=
+    SES.mode==='sprint'?'再来一局，挑战自己的最高分吧！⏱️':
+    SES.mode==='revenge'?(doubled?'全对通关，双倍经验已到账 🔥':'错题都变成了你的手下败将 💪'):
+    SES.mode==='challenge'?'整篇课文都闯关完啦！明天记得回来复习 🌱':
+    SES.mode==='review'?'记忆小种子又长大了一点 🌱':'温故而知新！';
   document.getElementById('res-right').textContent=SES.right;
   document.getElementById('res-wrong').textContent=SES.wrong;
   document.getElementById('res-xp').textContent='+'+SES.xp;
@@ -897,6 +1108,22 @@ function renderBadges(){
     const d=document.createElement('div');d.className='badge'+(got?' got':'');
     d.innerHTML=`<span>${b.e}</span><b>${b.n}</b><i>${b.d}</i>`;
     g.appendChild(d);
+  });
+  const tl=document.getElementById('tier-badge-list');tl.innerHTML='';
+  TIER_BADGES.forEach(tb=>{
+    const tier=tierOf(tb);
+    const v=tb.metric();
+    const nextTh=tb.tiers[tier]||tb.tiers[tb.tiers.length-1];
+    const prevTh=tier>0?tb.tiers[tier-1]:0;
+    const pct=tier>=3?100:Math.min(100,Math.round((v-prevTh)/(nextTh-prevTh)*100));
+    const tierName=['未解锁','铜','银','金'][tier];
+    const d=document.createElement('div');d.className='tbadge';
+    d.innerHTML=`<span class="ticon">${tb.e}</span>
+      <div class="tinfo"><b>${tb.n} <span style="color:#8a97ad;font-weight:400">${tierName}</span></b>
+      <i>${tier>=3?'已满级 '+tb.tiers[2]:`${v}/${nextTh}`}</i>
+      <div class="tbar"><div style="width:${pct}%"></div></div></div>
+      <div class="tdots"><span class="${tier>=1?'on1':''}"></span><span class="${tier>=2?'on2':''}"></span><span class="${tier>=3?'on3':''}"></span></div>`;
+    tl.appendChild(d);
   });
 }
 
