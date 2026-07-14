@@ -1,8 +1,8 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{height:100%}
 body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:linear-gradient(160deg,#aee8ff 0%,#d8f7e8 60%,#fff6d8 100%);background-attachment:fixed;color:#2b3a55;touch-action:manipulation}
-button,input{font:inherit;touch-action:manipulation}
-input,.spell-input{-webkit-user-select:text;user-select:text}
+button,input,textarea{font:inherit;touch-action:manipulation}
+input,textarea,.spell-input,.note-input{-webkit-user-select:text;user-select:text}
 #app{max-width:640px;margin:0 auto;min-height:100%;padding:14px 14px 30px}
 .screen{display:none;animation:fadein .25s}
 .screen.on{display:block}
@@ -58,6 +58,39 @@ input,.spell-input{-webkit-user-select:text;user-select:text}
 .study-ipa{min-height:22px;font-size:16px;color:#8a97ad;font-family:"Doulos SIL","Charis SIL","Segoe UI",serif;margin-top:5px}
 .study-cn{font-size:19px;color:#40516d;margin:10px 0 14px;line-height:1.35}
 .study-actions{display:flex;gap:8px}
+.note-card{padding:16px 18px}
+.note-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.note-head b{font-size:16px}
+.note-head span{font-size:12px;color:#8a97ad}
+.note-input{width:100%;resize:vertical;min-height:120px;border:3px solid #dbe4f0;border-radius:16px;background:#fbfdff;color:#2b3a55;padding:13px 14px;font-size:17px;line-height:1.55;outline:none}
+.note-input:focus{border-color:#4a6cf7;background:#fff}
+.note-items{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.note-items span{display:inline-flex;align-items:center;gap:5px;background:#f1f7ff;color:#40516d;border-radius:99px;padding:6px 10px;font-size:13px}
+.note-items b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#4a6cf7;color:#fff;font-size:11px}
+.note-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.note-actions .sbtn{flex:1 1 130px}
+.note-recall-card{padding:18px}
+.note-prompt{font-size:15px;color:#5b6b88;font-weight:800;margin-bottom:10px}
+.note-cue{margin:10px auto 0;background:#fff7e6;border:2px solid #ffd79a;border-radius:16px;padding:11px;max-width:100%;text-align:center}
+.note-cue b{display:block;font-size:12px;color:#b26000;margin-bottom:4px}
+.note-cue span{display:block;font-size:21px;font-weight:900;color:#2b3a55;line-height:1.35;word-break:break-word}
+.note-cue.muted{background:#f5f8fc;border-color:#e5edf7}
+.note-cue.muted b{color:#5b6b88}
+.note-cue.muted span{font-size:15px;font-weight:700;color:#7a89a3}
+.note-recall-input{min-height:220px}
+.note-session-input{min-height:170px;margin-bottom:10px}
+.note-result{margin-top:12px}
+.note-score{display:flex;align-items:center;justify-content:center;gap:10px;border-radius:16px;padding:12px;background:#f5f8fc}
+.note-score b{font-size:28px}
+.note-score span{font-weight:800}
+.note-score.good{background:#d9f7e5;color:#149c66}
+.note-score.mid{background:#fff4cf;color:#a66a00}
+.note-score.low{background:#ffe3e3;color:#e04444}
+.note-original{margin-top:12px;background:#f8fbff;border:1px solid #e5edf7;border-radius:16px;padding:12px;color:#40516d;line-height:1.7;white-space:pre-wrap}
+.note-original b{display:block;margin-bottom:6px;color:#2b3a55}
+.note-original p{margin-top:8px;color:#7a89a3;font-size:13px}
+.note-original span.hit{background:#e3f8ed;color:#14744f;border-radius:5px}
+.note-original span.miss{background:#ffe3e3;color:#d43535;border-radius:5px}
 /* session */
 .sess-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .pbar{flex:1;background:#ffffffaa;height:14px;border-radius:99px;overflow:hidden}
@@ -188,6 +221,11 @@ input,.spell-input{-webkit-user-select:text;user-select:text}
   .study-word{font-size:32px}
   .study-actions{gap:6px}
   .study-actions .sbtn{padding:11px 6px;font-size:13px}
+  .note-actions{gap:6px}
+  .note-actions .sbtn{padding:11px 6px;font-size:13px}
+  .note-input{font-size:16px;min-height:110px}
+  .note-recall-input{min-height:190px}
+  .note-session-input{min-height:150px}
   .qcard{padding:18px 12px;min-height:150px}
   .cn{font-size:23px}
   .tile{width:34px;height:44px;font-size:23px;border-radius:10px}

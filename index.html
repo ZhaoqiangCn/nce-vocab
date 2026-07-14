@@ -68,8 +68,34 @@
       <button class="sbtn" onclick="nextStudyCard()">下一个 →</button>
     </div>
   </div>
+  <div class="card note-card">
+    <div class="note-head"><b>✍️ 我的课文笔记</b><span id="note-status">未保存</span></div>
+    <textarea id="note-input" class="note-input" rows="5" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="用逗号分隔每条笔记，例如：There be句型,一般疑问句,易错单词" oninput="markLessonNoteDirty()"></textarea>
+    <div class="note-items" id="note-items"></div>
+    <div class="note-actions">
+      <button class="sbtn" onclick="saveLessonNote()">💾 保存笔记</button>
+      <button class="sbtn primary" id="note-recall-btn" onclick="startNoteRecall()">📝 默写笔记</button>
+    </div>
+  </div>
   <button class="bigbtn btn-learn" id="sheet-learn" style="padding:15px 20px;font-size:18px"></button>
   <div class="card" id="sheet-words"></div>
+</div>
+
+<!-- ============ NOTE RECALL ============ -->
+<div class="screen" id="scr-note">
+  <div class="topbar"><button class="back" onclick="backToLessonSheet()">←</button><h2 id="note-recall-title">默写笔记</h2></div>
+  <div class="card note-recall-card">
+    <div class="note-prompt" id="note-recall-prompt"></div>
+    <textarea id="note-recall-input" class="note-input note-recall-input" rows="8" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="看中文提示，把对应笔记默写在这里。"></textarea>
+    <div id="note-recall-result" class="note-result"></div>
+    <div id="note-original" class="note-original" style="display:none"></div>
+    <div class="note-actions">
+      <button class="sbtn primary" id="note-submit-btn" onclick="submitNoteRecall()">✓ 交卷</button>
+      <button class="sbtn" onclick="revealLessonNote()">👀 看原文</button>
+      <button class="sbtn" onclick="retryNoteRecall()">再默一次</button>
+      <button class="sbtn" id="note-next-btn" onclick="nextNoteRecall()" disabled>下一条 →</button>
+    </div>
+  </div>
 </div>
 
 <!-- ============ SESSION ============ -->
@@ -93,7 +119,7 @@
     </div>
     <p class="spell-hint" id="spell-hint">✍️ 用 Apple Pencil 直接在框里写字就行</p>
     <div class="phonics-area" id="phonics-area" style="display:none">
-      <div class="phonics-head"><span>🔤 音标默写</span><button class="phonics-del" onclick="deletePhoneme()">⌫</button></div>
+      <div class="phonics-head"><span>🔤 音标默写（选填）</span><button class="phonics-del" onclick="deletePhoneme()">⌫</button></div>
       <div class="phonics-slots" id="phonics-slots"></div>
       <div class="phonics-options" id="phonics-options"></div>
     </div>
@@ -109,6 +135,13 @@
   </div>
   <div id="present-area" style="display:none">
     <button class="sbtn primary" style="width:100%;padding:16px;font-size:18px" onclick="presentDone()">记住了，去拼写 ✏️</button>
+  </div>
+  <div id="note-session-area" style="display:none">
+    <textarea id="note-session-input" class="note-input note-session-input" rows="5" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="看中文提示，把对应笔记默写在这里。"></textarea>
+    <div id="note-session-original" class="note-original" style="display:none"></div>
+    <div class="submit-row">
+      <button class="sbtn primary submit-btn" id="btn-note-submit" onclick="submitSessionNote()">✓ 确定</button>
+    </div>
   </div>
 </div>
 

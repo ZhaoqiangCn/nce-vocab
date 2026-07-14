@@ -1,13 +1,23 @@
 const TOTAL_WORDS=UNITS.reduce((s,u)=>s+u.w.length,0);
+function englishNoteKey(text){return String(text).toLowerCase().replace(/[^a-z]/g,'')}
+const NOTE_HINTS=(()=>{
+  const m=new Map();
+  UNITS.forEach(u=>u.w.forEach(w=>{
+    const key=englishNoteKey(w[0]);
+    if(key&&!m.has(key))m.set(key,w[2]);
+  }));
+  return m;
+})();
+const NOTE_MAX_HINT_WORDS=UNITS.reduce((max,u)=>Math.max(max,...u.w.map(w=>String(w[0]).trim().split(/\s+/).length)),1);
 
 
 
 /* ================= 状态存取 ================= */
 const KEY='nce1_progress_v1';
-const STATE_VERSION=2;
+const STATE_VERSION=3;
 let S;
 function defaultState(){
-  return {v:STATE_VERSION,w:{},xp:0,badges:[],days:{},streak:0,lastDay:null,rev:0,combo:0,bestCombo:0,set:{n:10,rate:0.85,sound:true,kbMode:false},shields:0,shieldDate:null,missions:null,wrongPool:{},sprintBest:0,revengeFixed:0,tierBadges:{},blindDone:0,blindHighScore:0};
+  return {v:STATE_VERSION,w:{},notes:{},xp:0,badges:[],days:{},streak:0,lastDay:null,rev:0,combo:0,bestCombo:0,set:{n:10,rate:0.85,sound:true,kbMode:false},shields:0,shieldDate:null,missions:null,wrongPool:{},sprintBest:0,revengeFixed:0,tierBadges:{},blindDone:0,blindHighScore:0};
 }
 function migrateState(d){
   if(!d||typeof d!=='object'||!d.w)return null;
@@ -15,6 +25,7 @@ function migrateState(d){
   const next=Object.assign({},defaults,d);
   next.v=STATE_VERSION;
   next.w=d.w&&typeof d.w==='object'?d.w:{};
+  next.notes=d.notes&&typeof d.notes==='object'?d.notes:{};
   next.badges=Array.isArray(d.badges)?d.badges:[];
   next.days=d.days&&typeof d.days==='object'?d.days:{};
   next.set=Object.assign({},defaults.set,d.set||{});
@@ -295,6 +306,7 @@ function renderUnits(){
 
 /* ================= 单元详情（单词本） ================= */
 let SHEET_UI=0,SHEET_CARD_INDEX=0;
+let NOTE_RECALL_PARTS=[],NOTE_RECALL_INDEX=0,NOTE_RECALL_RESULTS=[];
 function renderStudyCard(){
   const u=UNITS[SHEET_UI];
   const i=Math.min(Math.max(SHEET_CARD_INDEX,0),u.w.length-1);
@@ -317,15 +329,267 @@ function nextStudyCard(){
   renderStudyCard();
 }
 function speakStudyCard(){speak(UNITS[SHEET_UI].w[SHEET_CARD_INDEX][0])}
+function noteKey(ui){return String(ui)}
+function currentLessonNote(){return S.notes[noteKey(SHEET_UI)]||''}
+function formatLessonNote(text){
+  return String(text)
+    .replace(/，/g,',')
+    .split(',')
+    .map(x=>x.trim().replace(/\s+/g,' '))
+    .filter(Boolean)
+    .join(',');
+}
+function lessonNoteParts(note){return formatLessonNote(note===undefined?currentLessonNote():note).split(',').filter(Boolean)}
+function renderLessonNoteItems(parts){
+  const box=document.getElementById('note-items');
+  if(!box)return;
+  if(!parts.length){box.innerHTML='';return}
+  box.innerHTML=parts.map((p,i)=>`<span><b>${i+1}</b>${safeText(p)}</span>`).join('');
+}
+function renderLessonNote(){
+  const note=currentLessonNote();
+  const parts=lessonNoteParts(note);
+  const inp=document.getElementById('note-input');
+  const status=document.getElementById('note-status');
+  const btn=document.getElementById('note-recall-btn');
+  if(inp)inp.value=note;
+  if(status)status.textContent=parts.length?`已保存 ${parts.length} 条`:'未保存';
+  if(btn)btn.disabled=!parts.length;
+  renderLessonNoteItems(parts);
+}
+function renderSheetLearnButton(){
+  const u=UNITS[SHEET_UI],p=unitProgress(SHEET_UI);
+  const noteN=lessonNoteParts(S.notes[noteKey(SHEET_UI)]||'').length;
+  const btn=document.getElementById('sheet-learn');
+  btn.innerHTML=`🎯 预习完成，开始挑战<small>${u.w.length} 个单词${noteN?` + ${noteN} 条笔记`:''}，当前已学 ${p} 个</small>`;
+  btn.onclick=()=>startLearn(SHEET_UI);
+}
+function markLessonNoteDirty(){
+  const saved=currentLessonNote();
+  const current=document.getElementById('note-input').value;
+  const status=document.getElementById('note-status');
+  const clean=formatLessonNote(current);
+  renderLessonNoteItems(lessonNoteParts(current));
+  if(status)status.textContent=clean===saved?(clean?`已保存 ${lessonNoteParts(clean).length} 条`:'未保存'):'未保存修改';
+}
+function saveLessonNote(){
+  const inp=document.getElementById('note-input');
+  const text=formatLessonNote(inp.value);
+  inp.value=text;
+  if(text)S.notes[noteKey(SHEET_UI)]=text;
+  else delete S.notes[noteKey(SHEET_UI)];
+  save();
+  renderLessonNote();
+  renderSheetLearnButton();
+  toast(text?'笔记已保存 ✅':'笔记已清空');
+}
+function startNoteRecall(){
+  const parts=lessonNoteParts();
+  if(!parts.length){toast('先写一点笔记再默写哦');return}
+  const u=UNITS[SHEET_UI];
+  document.getElementById('note-recall-title').textContent=`Lesson ${u.l} · 默写笔记`;
+  NOTE_RECALL_PARTS=parts;
+  NOTE_RECALL_INDEX=0;
+  NOTE_RECALL_RESULTS=[];
+  renderNoteRecallQuestion();
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.getElementById('scr-note').classList.add('on');
+  window.scrollTo(0,0);
+  setTimeout(()=>document.getElementById('note-recall-input').focus(),80);
+}
+function backToLessonSheet(){openSheet(SHEET_UI)}
+function currentNoteRecallPart(){return NOTE_RECALL_PARTS[NOTE_RECALL_INDEX]||''}
+function renderNoteRecallQuestion(){
+  const u=UNITS[SHEET_UI];
+  const info=noteRecallInfo(currentNoteRecallPart());
+  document.getElementById('note-recall-prompt').innerHTML=`${u.t} · 第 ${NOTE_RECALL_INDEX+1}/${NOTE_RECALL_PARTS.length} 条笔记${notePromptHTML(info)}`;
+  document.getElementById('note-recall-input').value='';
+  document.getElementById('note-recall-result').innerHTML='';
+  document.getElementById('note-original').style.display='none';
+  document.getElementById('note-original').innerHTML='';
+  document.getElementById('note-submit-btn').disabled=false;
+  const next=document.getElementById('note-next-btn');
+  next.disabled=true;
+  next.textContent=NOTE_RECALL_INDEX>=NOTE_RECALL_PARTS.length-1?'完成':'下一条 →';
+}
+function normalizeNoteText(text){
+  return String(text).toLowerCase().replace(/[\s.,!?;:'"`~()[\]{}<>，。！？；：“”‘’、（）【】《》—…·\-_/\\|]+/g,'');
+}
+function noteChineseHintFromEnglish(text){
+  const tokens=(String(text).toLowerCase().match(/[a-z]+/g)||[]);
+  const hints=[];
+  let known=0;
+  for(let i=0;i<tokens.length;){
+    let hit=null,step=1;
+    for(let len=Math.min(NOTE_MAX_HINT_WORDS,tokens.length-i);len>=1;len--){
+      const key=tokens.slice(i,i+len).join('');
+      if(NOTE_HINTS.has(key)){hit=NOTE_HINTS.get(key);step=len;break}
+    }
+    if(hit){hints.push(hit);known++}
+    else hints.push('？');
+    i+=step;
+  }
+  if(!tokens.length)return '';
+  const useful=known/tokens.length>=0.35||known>=2;
+  return useful?hints.join(' / '):'中文提示暂缺';
+}
+function noteRecallInfo(note){
+  const original=String(note||'').trim();
+  const chineseChars=/[\u3400-\u9fff]/;
+  const chineseKeep=/[\u3400-\u9fff，。！？；：“”‘’、（）【】《》]/;
+  if(!chineseChars.test(original)){
+    const prompt=noteChineseHintFromEnglish(original);
+    return {original,prompt:prompt||'中文提示暂缺',target:original,hasChinese:false,hasCue:!!prompt&&prompt!=='中文提示暂缺'};
+  }
+  const prompt=[...original].filter(ch=>chineseKeep.test(ch)).join('').replace(/^[，。！？；、]+|[，。！？；、]+$/g,'');
+  const target=original.replace(/[\u3400-\u9fff，。！？；：“”‘’、（）【】《》]/g,' ').replace(/\s+/g,' ').trim();
+  if(target)return {original,prompt,target,hasChinese:true,hasCue:true};
+  return {original,prompt:'中文笔记',target:original,hasChinese:true,hasCue:false};
+}
+function notePromptHTML(info,label){
+  if(info.hasCue){
+    return `<div class="note-cue"><b>${label||'中文提示'}</b><span>${safeText(info.prompt)}</span></div>`;
+  }
+  return `<div class="note-cue muted"><b>${safeText(info.prompt)}</b><span>请默写这条英文笔记</span></div>`;
+}
+function lcsMask(target,given){
+  const a=[...target],b=[...given];
+  const dp=Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
+  for(let i=a.length-1;i>=0;i--){
+    for(let j=b.length-1;j>=0;j--){
+      dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+    }
+  }
+  const mask=Array(a.length).fill(false);
+  let i=0,j=0;
+  while(i<a.length&&j<b.length){
+    if(a[i]===b[j]){mask[i]=true;i++;j++}
+    else if(dp[i+1][j]>=dp[i][j+1])i++;
+    else j++;
+  }
+  return {score:a.length?dp[0][0]/a.length:(b.length?0:1),mask};
+}
+function noteDiffHTML(original,mask){
+  const compact=normalizeNoteText(original);
+  let k=0,html='';
+  [...original].forEach(ch=>{
+    if(normalizeNoteText(ch)){
+      html+=`<span class="${mask[k]?'hit':'miss'}">${safeText(ch)}</span>`;
+      k++;
+    }else{
+      html+=safeText(ch);
+    }
+  });
+  if(k!==compact.length)return safeText(original);
+  return html;
+}
+function noteScore(original,given){
+  const target=normalizeNoteText(original),answer=normalizeNoteText(given);
+  return lcsMask(target,answer);
+}
+function noteAnswerHTML(info,result){
+  const full=info.original!==info.target?`<p>完整笔记：${safeText(info.original)}</p>`:'';
+  return `<b>正确答案</b><div>${noteDiffHTML(info.target,result.mask)}</div>${full}`;
+}
+function submitSessionNote(){
+  if(!CUR||CUR.kind!=='note'||CUR._locked)return;
+  const inp=document.getElementById('note-session-input');
+  const given=inp.value.trim();
+  if(!given){toast('先默写一点内容再确认');inp.focus();return}
+  CUR._locked=true;
+  const info=noteRecallInfo(CUR.note);
+  const result=noteScore(info.target,given);
+  const pct=Math.round(result.score*100);
+  const ok=pct>=80;
+  const fb=document.getElementById('fb');
+  const originalBox=document.getElementById('note-session-original');
+  originalBox.style.display='block';
+  originalBox.innerHTML=noteAnswerHTML(info,result);
+  fb.textContent=ok?`笔记默写 ${pct}% ✅`:`笔记默写 ${pct}%，再写一遍`;
+  fb.className=ok?'fb good':'fb badc';
+  gradeSessionNote(ok,pct);
+}
+function gradeSessionNote(ok,pct){
+  const day=markActivity();
+  if(ok){
+    const noWrong=!CUR.attempted;
+    S.combo++;S.bestCombo=Math.max(S.bestCombo,S.combo);
+    let gain=pct>=95?10:7;
+    if(!CUR.counted){
+      CUR.counted=true;
+      if(noWrong){SES.right++;day.r++}
+      if(S.combo>=8)gain=Math.round(gain*1.5);
+      else if(S.combo>=3)gain=Math.round(gain*1.2);
+    }else gain=0;
+    S.xp+=gain;SES.xp+=gain;
+    save();checkBadges();
+    SES.queue.shift();
+    renderBoard();
+    setTimeout(nextCard,1000);
+    return;
+  }
+  if(S.shields>0){S.shields--;toast('🛡️ 护盾帮你挡了一下，连击保住了！')}
+  else S.combo=0;
+  if(!CUR.attempted){SES.wrong++;day.w++}
+  CUR.attempted=true;CUR.retry=(CUR.retry||0)+1;
+  save();
+  setTimeout(()=>{
+    CUR._locked=false;
+    document.getElementById('note-session-input').value='';
+    document.getElementById('note-session-input').focus();
+  },1500);
+}
+function submitNoteRecall(){
+  const info=noteRecallInfo(currentNoteRecallPart());
+  const given=document.getElementById('note-recall-input').value.trim();
+  if(!given){toast('先默写一点内容再交卷');return}
+  const result=noteScore(info.target,given);
+  const pct=Math.round(result.score*100);
+  const title=pct>=90?'太稳了':pct>=70?'基本记住了':'还要再看一遍';
+  NOTE_RECALL_RESULTS[NOTE_RECALL_INDEX]=pct;
+  document.getElementById('note-recall-result').innerHTML=`<div class="note-score ${pct>=90?'good':pct>=70?'mid':'low'}"><b>${pct}%</b><span>${title}</span></div>`;
+  const originalBox=document.getElementById('note-original');
+  originalBox.style.display='block';
+  originalBox.innerHTML=noteAnswerHTML(info,result);
+  document.getElementById('note-submit-btn').disabled=true;
+  document.getElementById('note-next-btn').disabled=false;
+}
+function revealLessonNote(){
+  const note=currentNoteRecallPart()||currentLessonNote().trim();
+  if(!note){toast('还没有保存笔记');return}
+  const originalBox=document.getElementById('note-original');
+  originalBox.style.display='block';
+  originalBox.innerHTML=`<b>笔记原文</b><div>${safeText(note).replace(/\n/g,'<br>')}</div>`;
+}
+function retryNoteRecall(){
+  document.getElementById('note-recall-input').value='';
+  document.getElementById('note-recall-result').innerHTML='';
+  document.getElementById('note-original').style.display='none';
+  document.getElementById('note-submit-btn').disabled=false;
+  document.getElementById('note-next-btn').disabled=true;
+  document.getElementById('note-recall-input').focus();
+}
+function nextNoteRecall(){
+  if(NOTE_RECALL_INDEX<NOTE_RECALL_PARTS.length-1){
+    NOTE_RECALL_INDEX++;
+    renderNoteRecallQuestion();
+    setTimeout(()=>document.getElementById('note-recall-input').focus(),60);
+    return;
+  }
+  const done=NOTE_RECALL_RESULTS.filter(x=>Number.isFinite(x));
+  const avg=done.length?Math.round(done.reduce((s,x)=>s+x,0)/done.length):0;
+  document.getElementById('note-recall-result').innerHTML=`<div class="note-score ${avg>=90?'good':avg>=70?'mid':'low'}"><b>${avg}%</b><span>全部 ${NOTE_RECALL_PARTS.length} 条完成</span></div>`;
+  document.getElementById('note-original').style.display='none';
+  document.getElementById('note-next-btn').disabled=true;
+}
 function openSheet(ui){
   SHEET_UI=ui;
   SHEET_CARD_INDEX=0;
-  const u=UNITS[ui],p=unitProgress(ui);
+  const u=UNITS[ui];
   document.getElementById('sheet-title').textContent=`Unit ${ui+1} · Lesson ${u.l}`;
-  const btn=document.getElementById('sheet-learn');
-  btn.innerHTML=`🎯 预习完成，开始挑战<small>本关共 ${u.w.length} 个单词，当前已学 ${p} 个</small>`;
-  btn.onclick=()=>startLearn(ui);
+  renderSheetLearnButton();
   renderStudyCard();
+  renderLessonNote();
   const box=document.getElementById('sheet-words');box.innerHTML='';
   u.w.forEach((w,i)=>{
     const st=S.w[ui+'-'+i];
@@ -353,7 +617,9 @@ function beginSession(session){
 function startLearn(ui){
   // 整篇课文一次性挑战：本单元全部单词，直接拼写（先在单词表上自学，再一次挑战）
   const u=UNITS[ui];
-  const items=u.w.map((w,i)=>({id:ui+'-'+i,w,mode:S.w[ui+'-'+i]?'review':'learn',phase:'spell'}));
+  const wordItems=u.w.map((w,i)=>({id:ui+'-'+i,w,mode:S.w[ui+'-'+i]?'review':'learn',phase:'spell'}));
+  const noteItems=lessonNoteParts(S.notes[noteKey(ui)]||'').map((note,i)=>({id:`note-${ui}-${i}`,kind:'note',note,mode:'note',phase:'note'}));
+  const items=wordItems.concat(noteItems);
   beginSession({queue:items,total:items.length,right:0,wrong:0,xp:0,mode:'challenge'});
   SES.board=makeBoard(items.length);
   go('sess');nextCard();
@@ -440,8 +706,8 @@ function finishBlindExam(){
   SES.answers.forEach(a=>{
     const target=a.w[0].toLowerCase().replace(/[^a-z]/g,'');
     const wordOk=a.given===target;
-    const ipaOk=!a.ipaTarget||a.ipaGiven===a.ipaTarget;
-    const ok=wordOk&&ipaOk;
+    const ipaOk=!a.ipaGiven||a.ipaGiven===a.ipaTarget;
+    const ok=wordOk;
     a.ok=ok;
     a.wordOk=wordOk;
     a.ipaOk=ipaOk;
@@ -593,13 +859,16 @@ function nextCard(){
   }
   document.getElementById('combo-el').textContent=S.combo>=2?`🔥x${S.combo}`:'';
   document.getElementById('shield-el').textContent=S.shields>0?`🛡️x${S.shields}`:'';
-  if(CUR.phase==='present')showPresent();else showSpell();
+  if(CUR.kind==='note')showSessionNote();
+  else if(CUR.phase==='present')showPresent();
+  else showSpell();
 }
 function showPresent(){
   const w=CUR.w;
   document.getElementById('qcard').innerHTML=
     `<span class="pos">${w[1]||'词组'}</span><div class="en-big">${w[0]}</div><div class="cn" style="font-size:20px;color:#5b6b88">${w[2]}</div><button class="spk" onclick="speakCur()">🔊</button>`;
   document.getElementById('spell-area').style.display='none';
+  document.getElementById('note-session-area').style.display='none';
   document.getElementById('present-area').style.display='block';
   speak(w[0]);
 }
@@ -621,6 +890,7 @@ function shuffleCopy(a){const b=a.slice();shuffle(b);return b}
 function hasPhoneTask(){return PHONE_TARGET.length>0}
 function phoneAnswer(){return PHONE_PICKED.map(x=>x.t).join('')}
 function phoneCorrect(){return !hasPhoneTask()||phoneAnswer()===PHONE_TARGET.join('')}
+function phoneAttempted(){return hasPhoneTask()&&PHONE_PICKED.length>0}
 function setupPhonics(ipa){
   PHONE_IPA=ipa||'';
   PHONE_TARGET=tokenizeIpa(ipa);
@@ -673,6 +943,20 @@ function resetPhonics(){
   PHONE_PICKED=[];
   renderPhonics();
 }
+function showSessionNote(){
+  const idx=(CUR.id.match(/note-\d+-(\d+)/)||[])[1];
+  const info=noteRecallInfo(CUR.note);
+  document.getElementById('qcard').innerHTML=
+    `<span class="pos">课文笔记</span><div class="cn">默写第 ${idx?+idx+1:''} 条笔记</div>${notePromptHTML(info)}<p style="color:#8a97ad;font-size:14px;margin-top:8px">看中文提示，默写对应笔记</p>`;
+  document.getElementById('spell-area').style.display='none';
+  document.getElementById('present-area').style.display='none';
+  document.getElementById('note-session-area').style.display='block';
+  const inp=document.getElementById('note-session-input');
+  inp.value='';
+  document.getElementById('note-session-original').style.display='none';
+  document.getElementById('note-session-original').innerHTML='';
+  setTimeout(()=>inp.focus(),60);
+}
 function showSpell(){
   const w=CUR.w;
   FIRST=CUR.attempted?false:true;HINTS=0;RETRY=CUR.retry||0;
@@ -681,6 +965,7 @@ function showSpell(){
   document.getElementById('qcard').innerHTML=
     `<span class="pos">${w[1]||'词组'}</span>${ipa&&!phoneTokens.length?`<div class="ipa">/${ipa}/</div>`:''}<div class="cn">${w[2]}</div><button class="spk" onclick="speakCur()">🔊</button>`;
   document.getElementById('present-area').style.display='none';
+  document.getElementById('note-session-area').style.display='none';
   document.getElementById('spell-area').style.display='block';
   ANSWER=w[0];SLOTS=[];POS=-1;
   const box=document.getElementById('tiles');box.innerHTML='';
@@ -752,8 +1037,7 @@ function updateSubmitState(count){
   const btn=document.getElementById('btn-submit');
   const letters=count===undefined?typedLetterCount():count;
   const wordReady=letters>=SLOTS.length;
-  const phoneReady=!hasPhoneTask()||PHONE_PICKED.length>=PHONE_TARGET.length;
-  if(btn)btn.disabled=!(wordReady&&phoneReady);
+  if(btn)btn.disabled=!wordReady;
 }
 function syncInputToTiles(){
   if(!CUR||CUR.phase!=='spell')return;
@@ -797,11 +1081,6 @@ function submitSpell(){
     inp.focus();
     return;
   }
-  if(hasPhoneTask()&&PHONE_PICKED.length<PHONE_TARGET.length){
-    toast('音标还没拼完哦');
-    inp.focus();
-    return;
-  }
   if(SES&&SES.mode==='blind'){blindSubmit();return;}
   check();
 }
@@ -811,20 +1090,20 @@ function check(){
   const inp=document.getElementById('spell-input');
   const typed=inp.value.toLowerCase().replace(/[^a-z]/g,'');
   const wordOk=typed.length>0&&typed===letterAnswer();
-  const phoneOk=phoneCorrect();
-  const ok=wordOk&&phoneOk;
+  const phoneOk=!phoneAttempted()||phoneCorrect();
+  const ok=wordOk;
   const fb=document.getElementById('fb');
   if(ok){
     SLOTS.forEach(s=>{s.el.classList.remove('cur');s.el.classList.add('ok')});
-    renderPhonics('ok');
+    if(phoneAttempted())renderPhonics(phoneOk?'ok':'bad');
     beep('ok');
     grade(true);
   }else{
     SLOTS.forEach((s,i)=>{if((typed[i]||'')!==s.ch.toLowerCase())s.el.classList.add('bad');s.el.classList.remove('cur')});
-    if(hasPhoneTask())renderPhonics(phoneOk?'ok':'bad');
+    if(phoneAttempted())renderPhonics(phoneOk?'ok':'bad');
     beep('bad');
     const nextRetry=(CUR.retry||0)+1;
-    fb.innerHTML=`正确拼写：<b style="font-size:22px">${ANSWER}</b>${hasPhoneTask()?`<br>正确音标：<b style="font-size:20px">/${PHONE_IPA}/</b>`:''}${spellHintHTML(typed,nextRetry)}`;
+    fb.innerHTML=`正确拼写：<b style="font-size:22px">${ANSWER}</b>${phoneAttempted()&&!phoneOk?`<br>正确音标：<b style="font-size:20px">/${PHONE_IPA}/</b>`:''}${spellHintHTML(typed,nextRetry)}`;
     fb.className='fb badc';
     speak(ANSWER);
     grade(false);
