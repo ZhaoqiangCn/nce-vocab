@@ -232,10 +232,11 @@ function go(name){
 function renderHome(){
   ensureDailyShield();
   const h=new Date().getHours();
+  const learned=learnedCount();
   document.getElementById('greet').textContent=h<12?'早上好呀！☀️':h<18?'下午好呀！🌤️':'晚上好呀！🌙';
   const due=dueIds().length;
   document.getElementById('c-streak').textContent=S.streak;
-  document.getElementById('c-learned').textContent=learnedCount();
+  document.getElementById('c-learned').textContent=learned;
   document.getElementById('c-master').textContent=masterCount();
   document.getElementById('c-shield').textContent=S.shields;
   const L=levelInfo();
@@ -252,11 +253,13 @@ function renderHome(){
   const wrongN=Object.keys(S.wrongPool).length;
   const rb=document.getElementById('btn-revenge');
   rb.disabled=wrongN===0;
-  rb.innerHTML=`<span>⚔️</span>错题复仇局${wrongN?`(${wrongN})`:''}`;
+  rb.innerHTML=`<span>⚔️</span>错题复仇局${wrongN?`(${wrongN})`:'<small>暂无错题</small>'}`;
   const sb=document.getElementById('btn-sprint');
-  sb.disabled=learnedCount()<5;
+  sb.disabled=learned<5;
+  sb.innerHTML=`<span>⏱️</span>60秒冲刺${learned<5?`<small>还差 ${5-learned} 个词</small>`:''}`;
   const xb=document.getElementById('btn-blind');
-  xb.disabled=learnedCount()<10;
+  xb.disabled=learned<10;
+  xb.innerHTML=`<span>📝</span>盲答闯关${learned<10?`<small>还差 ${10-learned} 个词</small>`:''}`;
 }
 function renderMissionCard(){
   const st=missionStatus();
@@ -291,14 +294,38 @@ function renderUnits(){
 }
 
 /* ================= 单元详情（单词本） ================= */
-let SHEET_UI=0;
+let SHEET_UI=0,SHEET_CARD_INDEX=0;
+function renderStudyCard(){
+  const u=UNITS[SHEET_UI];
+  const i=Math.min(Math.max(SHEET_CARD_INDEX,0),u.w.length-1);
+  SHEET_CARD_INDEX=i;
+  const w=u.w[i],ipa=ipaOf(w[0]);
+  const learned=!!S.w[SHEET_UI+'-'+i];
+  document.getElementById('study-meta').textContent=`${i+1}/${u.w.length} · Lesson ${u.l}${learned?' · 已学':' · 新词'}`;
+  document.getElementById('study-word').textContent=w[0];
+  document.getElementById('study-ipa').textContent=ipa?`/${ipa}/`:'';
+  document.getElementById('study-cn').textContent=`${w[1]?w[1]+' ':''}${w[2]}`;
+}
+function prevStudyCard(){
+  const u=UNITS[SHEET_UI];
+  SHEET_CARD_INDEX=(SHEET_CARD_INDEX-1+u.w.length)%u.w.length;
+  renderStudyCard();
+}
+function nextStudyCard(){
+  const u=UNITS[SHEET_UI];
+  SHEET_CARD_INDEX=(SHEET_CARD_INDEX+1)%u.w.length;
+  renderStudyCard();
+}
+function speakStudyCard(){speak(UNITS[SHEET_UI].w[SHEET_CARD_INDEX][0])}
 function openSheet(ui){
   SHEET_UI=ui;
+  SHEET_CARD_INDEX=0;
   const u=UNITS[ui],p=unitProgress(ui);
   document.getElementById('sheet-title').textContent=`Unit ${ui+1} · Lesson ${u.l}`;
   const btn=document.getElementById('sheet-learn');
-  btn.innerHTML=`🎯 一次挑战全部 ${u.w.length} 个单词<small>先看下面单词表记一记，准备好就出发闯关</small>`;
+  btn.innerHTML=`🎯 预习完成，开始挑战<small>本关共 ${u.w.length} 个单词，当前已学 ${p} 个</small>`;
   btn.onclick=()=>startLearn(ui);
+  renderStudyCard();
   const box=document.getElementById('sheet-words');box.innerHTML='';
   u.w.forEach((w,i)=>{
     const st=S.w[ui+'-'+i];
@@ -427,6 +454,11 @@ function finishBlindExam(){
     if(ok)fixWrongInPool(a.id);
     else S.wrongPool[a.id]=(S.wrongPool[a.id]||0)+1;
   });
+  SES.breakdown={
+    blank:SES.answers.filter(a=>!a.given&&!a.ipaGiven).length,
+    unsure:SES.answers.filter(a=>a.flagged).length,
+    typo:SES.answers.filter(a=>!a.ok&&(a.given||a.ipaGiven)&&!a.flagged).length
+  };
   const total=SES.answers.length;
   const acc=total?right/total:0;
   let xp=right*10+20;
@@ -449,6 +481,8 @@ function renderBlindResult(acc){
   document.getElementById('bx-emoji').textContent=acc>=0.9?'🏆':acc>=0.8?'🎉':acc>=0.6?'📝':'💪';
   document.getElementById('bx-title').textContent=`交卷啦！正确率 ${Math.round(acc*100)}%`;
   document.getElementById('bx-sub').textContent=acc>=0.9?'满分学霸操作！':acc>=0.8?'非常棒，继续保持！':'没关系，来看看错在哪里吧';
+  const b=SES.breakdown||{blank:0,typo:0,unsure:0};
+  document.getElementById('bx-breakdown').innerHTML=`<div class="mini"><b>${b.blank}</b><i>不会</i></div><div class="mini"><b>${b.typo}</b><i>拼错</i></div><div class="mini"><b>${b.unsure}</b><i>标记</i></div>`;
   document.getElementById('bx-right').textContent=SES.right;
   document.getElementById('bx-wrong').textContent=SES.wrong;
   document.getElementById('bx-xp').textContent='+'+SES.xp;
@@ -460,9 +494,13 @@ function openBlindReview(){
   SES.answers.forEach(a=>{
     const ipa=ipaOf(a.w[0]);
     const d=document.createElement('div');d.className='wline';
+    const tags=[];
+    if(!a.given&&!a.ipaGiven)tags.push('不会');
+    if(a.flagged)tags.push('不确定');
+    if(!a.ok&&(a.given||a.ipaGiven)&&!a.flagged)tags.push('拼错');
     d.innerHTML=`<span class="we" style="min-width:130px">${a.w[0]}${ipa?`<i class="wipa">/${ipa}/</i>`:''}</span>
       <span class="wc">${a.w[2]}<br><b style="color:${a.wordOk?'#149c66':'#e04444'}">你写：${a.given||'（空）'}</b>${a.wordOk?'':' <span style="color:#8a97ad">'+'正确：'+a.w[0]+'</span>'}${a.ipaText?`<br><b style="color:${a.ipaOk?'#149c66':'#e04444'}">音标：/${a.ipaGiven||'（空）'}/</b>${a.ipaOk?'':' <span style="color:#8a97ad">正确：/'+a.ipaText+'/</span>'}`:''}</span>
-      <span style="font-size:18px">${a.ok?'✅':'❌'}</span>`;
+      <span class="review-tags">${tags.map(t=>`<i>${t}</i>`).join('')}<b>${a.ok?'✅':'❌'}</b></span>`;
     box.appendChild(d);
   });
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
@@ -509,7 +547,8 @@ function renderBoard(){
   for(let i=0;i<SES.total;i++)cells.push({k:'word',i});
   cells.push({k:'finish'});
   const tot=cells.length;
-  const cols=tot<=6?tot:tot<=12?6:tot<=24?7:8;
+  const narrow=window.innerWidth<=420;
+  const cols=narrow?(tot<=5?tot:tot<=12?5:6):(tot<=6?tot:tot<=12?6:tot<=24?7:8);
   while(cells.length%cols)cells.push({k:'pad'});
   const rows=cells.length/cols;
   let html='';
@@ -678,6 +717,33 @@ function toggleKeyboard(){
 }
 function markCursor(){SLOTS.forEach((s,j)=>s.el.classList.toggle('cur',j===POS))}
 function letterAnswer(){return ANSWER.toLowerCase().replace(/[^a-z]/g,'')}
+function safeText(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function wordSegments(answer){
+  return answer.split(/([\s-]+)/).map(part=>{
+    if(/[\s-]+/.test(part))return part;
+    const letters=part.replace(/[^a-zA-Z]/g,'');
+    if(!letters)return part;
+    return letters[0].toLowerCase()+Array(Math.max(letters.length-1,0)).fill('_').join('');
+  }).join(' ');
+}
+function spellDiffHTML(typed,target){
+  const t=target.toLowerCase().replace(/[^a-z]/g,'');
+  let html='<div class="spell-diff">';
+  for(let i=0;i<t.length;i++){
+    const miss=(typed[i]||'')!==t[i];
+    html+=`<span class="${miss?'miss':''}">${safeText(t[i])}</span>`;
+  }
+  return html+'</div>';
+}
+function spellHintHTML(typed,retry){
+  const target=letterAnswer();
+  const first=target[0]||'';
+  const bad=target.split('').find((ch,i)=>(typed[i]||'')&&typed[i]!==ch);
+  const parts=[`首字母 ${safeText(first)}`,`分段 ${safeText(wordSegments(ANSWER))}`];
+  if(bad)parts.push(`留意 ${safeText(bad)}`);
+  if(retry>=2)parts.push('灰字描红');
+  return `<div class="word-hint">${parts.join(' · ')}</div>${spellDiffHTML(typed,ANSWER)}`;
+}
 function typedLetterCount(){
   const inp=document.getElementById('spell-input');
   return inp?inp.value.toLowerCase().replace(/[^a-z]/g,'').length:0;
@@ -757,7 +823,8 @@ function check(){
     SLOTS.forEach((s,i)=>{if((typed[i]||'')!==s.ch.toLowerCase())s.el.classList.add('bad');s.el.classList.remove('cur')});
     if(hasPhoneTask())renderPhonics(phoneOk?'ok':'bad');
     beep('bad');
-    fb.innerHTML=`正确拼写：<b style="font-size:22px">${ANSWER}</b>${hasPhoneTask()?`<br>正确音标：<b style="font-size:20px">/${PHONE_IPA}/</b>`:''}`;
+    const nextRetry=(CUR.retry||0)+1;
+    fb.innerHTML=`正确拼写：<b style="font-size:22px">${ANSWER}</b>${hasPhoneTask()?`<br>正确音标：<b style="font-size:20px">/${PHONE_IPA}/</b>`:''}${spellHintHTML(typed,nextRetry)}`;
     fb.className='fb badc';
     speak(ANSWER);
     grade(false);

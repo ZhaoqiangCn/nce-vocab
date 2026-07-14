@@ -57,6 +57,17 @@
 <!-- ============ WORD SHEET ============ -->
 <div class="screen" id="scr-sheet">
   <div class="topbar"><button class="back" onclick="go('units')">←</button><h2 id="sheet-title"></h2></div>
+  <div class="study-card" id="study-card">
+    <div class="study-meta" id="study-meta"></div>
+    <div class="study-word" id="study-word"></div>
+    <div class="study-ipa" id="study-ipa"></div>
+    <div class="study-cn" id="study-cn"></div>
+    <div class="study-actions">
+      <button class="sbtn" onclick="prevStudyCard()">← 上一个</button>
+      <button class="sbtn primary" onclick="speakStudyCard()">🔊 听发音</button>
+      <button class="sbtn" onclick="nextStudyCard()">下一个 →</button>
+    </div>
+  </div>
   <button class="bigbtn btn-learn" id="sheet-learn" style="padding:15px 20px;font-size:18px"></button>
   <div class="card" id="sheet-words"></div>
 </div>
@@ -122,6 +133,7 @@
     <div class="big" id="bx-emoji">📝</div>
     <h2 id="bx-title">交卷啦！</h2>
     <p id="bx-sub" style="color:#7a89a3"></p>
+    <div class="blind-breakdown" id="bx-breakdown"></div>
     <div class="rstats">
       <div class="chip">✅<b id="bx-right">0</b><i>答对</i></div>
       <div class="chip">❌<b id="bx-wrong">0</b><i>答错</i></div>

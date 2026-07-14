@@ -1,6 +1,8 @@
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{height:100%}
 body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:linear-gradient(160deg,#aee8ff 0%,#d8f7e8 60%,#fff6d8 100%);background-attachment:fixed;color:#2b3a55;touch-action:manipulation}
+button,input{font:inherit;touch-action:manipulation}
+input,.spell-input{-webkit-user-select:text;user-select:text}
 #app{max-width:640px;margin:0 auto;min-height:100%;padding:14px 14px 30px}
 .screen{display:none;animation:fadein .25s}
 .screen.on{display:block}
@@ -18,6 +20,7 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .iconrow{display:flex;gap:10px}
 .iconbtn{flex:1;background:#fff;border:none;border-radius:18px;padding:12px 6px;font-size:14px;color:#2b3a55;box-shadow:0 4px 10px rgba(60,90,140,.10);cursor:pointer}
 .iconbtn span{display:block;font-size:26px;margin-bottom:4px}
+.iconbtn small{display:block;font-size:11px;line-height:1.25;color:#8a97ad;margin-top:3px;font-weight:600}
 .iconbtn.chal{background:linear-gradient(135deg,#fff0f5,#fff7e6);color:#c2410c;font-weight:700}
 .iconbtn.chal:disabled{opacity:.45;filter:grayscale(.5)}
 .mission-card{padding:16px 18px}
@@ -48,6 +51,13 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .ubar div{height:100%;background:linear-gradient(90deg,#4facfe,#00c6a7);border-radius:99px}
 .unit .st{font-size:20px;flex-shrink:0}
 .rec{background:#fff3e0;border:2px dashed #ffb74d;}
+/* study cards */
+.study-card{background:#fff;border-radius:22px;padding:18px;text-align:center;box-shadow:0 6px 18px rgba(60,90,140,.10);margin-bottom:14px}
+.study-meta{font-size:13px;color:#8a97ad;font-weight:700;margin-bottom:8px}
+.study-word{font-size:38px;font-weight:900;line-height:1.15;word-break:break-word}
+.study-ipa{min-height:22px;font-size:16px;color:#8a97ad;font-family:"Doulos SIL","Charis SIL","Segoe UI",serif;margin-top:5px}
+.study-cn{font-size:19px;color:#40516d;margin:10px 0 14px;line-height:1.35}
+.study-actions{display:flex;gap:8px}
 /* session */
 .sess-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .pbar{flex:1;background:#ffffffaa;height:14px;border-radius:99px;overflow:hidden}
@@ -78,6 +88,10 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .tile.ok{background:#d9f7e5;border-color:#3ecf8e;color:#149c66;animation:pop .3s}
 .tile.bad{background:#ffe3e3;border-color:#ff8a8a;color:#e04444;animation:shake .4s}
 .tile.ghost{color:#c3cede}
+.spell-diff{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-top:6px}
+.spell-diff span{min-width:22px;padding:2px 6px;border-radius:8px;background:#eef4ff;color:#5b6b88}
+.spell-diff span.miss{background:#ffe3e3;color:#e04444}
+.word-hint{font-size:13px;color:#5b6b88;margin-top:6px}
 @keyframes pop{50%{transform:scale(1.18)}}
 @keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 .fb{min-height:34px;text-align:center;font-size:17px;font-weight:700;margin-bottom:6px}
@@ -114,6 +128,10 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .result .big{font-size:64px}
 .result h2{margin:10px 0 4px}
 .rstats{display:flex;gap:10px;margin:18px 0}
+.blind-breakdown{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.blind-breakdown .mini{background:#f5f8fc;border-radius:14px;padding:10px 6px}
+.blind-breakdown b{display:block;font-size:20px}
+.blind-breakdown i{font-style:normal;font-size:11px;color:#7a89a3}
 /* stats */
 .chart{display:flex;align-items:flex-end;gap:4px;height:110px;padding:6px 2px 0}
 .bar{flex:1;background:linear-gradient(180deg,#4facfe,#00c6a7);border-radius:6px 6px 0 0;min-height:3px;position:relative}
@@ -148,6 +166,9 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .wline .wipa{display:block;font-style:normal;font-weight:400;font-size:12px;color:#9aa8bf}
 .wline .wc{color:#5b6b88;font-size:14px;flex:1}
 .wline .ws{border:none;background:#e8f6ff;border-radius:8px;font-size:16px;width:34px;height:30px;cursor:pointer}
+.review-tags{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:18px}
+.review-tags i{font-style:normal;background:#fff1e8;color:#c2410c;border-radius:99px;padding:2px 7px;font-size:11px;white-space:nowrap}
+.review-tags b{font-size:18px}
 .wline .lv{font-size:11px;color:#fff;background:#c3cede;border-radius:8px;padding:2px 6px}
 .wline .lv.l1{background:#8fc3ff}.wline .lv.l2{background:#5da9ff}.wline .lv.l3{background:#3ecf8e}.wline .lv.l4{background:#f5b93c}.wline .lv.l5{background:#ff9a3c}
 #confetti{position:fixed;inset:0;pointer-events:none;z-index:99}
@@ -155,4 +176,26 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .badgepop{position:fixed;inset:0;background:rgba(30,40,60,.5);display:flex;align-items:center;justify-content:center;z-index:101}
 .badgepop .in{background:#fff;border-radius:26px;padding:30px;text-align:center;width:280px;animation:pop .4s}
 .badgepop .in span{font-size:70px}
+@media (max-width:420px){
+  #app{padding:10px 10px 24px}
+  .statchips,.rstats{gap:6px}
+  .chip{padding:8px 4px;border-radius:14px}
+  .chip b{font-size:19px}
+  .iconrow{gap:7px}
+  .iconbtn{min-height:78px;padding:10px 4px;font-size:12px;border-radius:15px}
+  .iconbtn span{font-size:23px}
+  .bigbtn{font-size:19px;padding:17px}
+  .study-word{font-size:32px}
+  .study-actions{gap:6px}
+  .study-actions .sbtn{padding:11px 6px;font-size:13px}
+  .qcard{padding:18px 12px;min-height:150px}
+  .cn{font-size:23px}
+  .tile{width:34px;height:44px;font-size:23px;border-radius:10px}
+  .spell-input{font-size:24px;letter-spacing:2px;padding:14px 8px}
+  .phone-slot,.phone-option{min-width:34px;height:36px;font-size:20px}
+  .srow{gap:6px}
+  .sbtn{padding:12px 7px;font-size:14px}
+  .btile{border-radius:8px;font-size:16px}
+  .blind-breakdown{gap:6px}
+}
 
