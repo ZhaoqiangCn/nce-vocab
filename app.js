@@ -397,7 +397,7 @@ function blindSubmit(){
   CUR._locked=true;
   const inp=document.getElementById('spell-input');
   const typed=inp.value.toLowerCase().replace(/[^a-z]/g,'');
-  SES.answers.push({id:CUR.id,w:CUR.w,given:typed,flagged:!!CUR.flagged});
+  SES.answers.push({id:CUR.id,w:CUR.w,given:typed,ipaGiven:phoneAnswer(),ipaTarget:PHONE_TARGET.join(''),ipaText:PHONE_IPA,flagged:!!CUR.flagged});
   SES.idx++;
   const fb=document.getElementById('fb');
   fb.textContent='已记录，下一题 →';fb.className='fb';
@@ -412,8 +412,12 @@ function finishBlindExam(){
   let right=0;
   SES.answers.forEach(a=>{
     const target=a.w[0].toLowerCase().replace(/[^a-z]/g,'');
-    const ok=a.given===target;
+    const wordOk=a.given===target;
+    const ipaOk=!a.ipaTarget||a.ipaGiven===a.ipaTarget;
+    const ok=wordOk&&ipaOk;
     a.ok=ok;
+    a.wordOk=wordOk;
+    a.ipaOk=ipaOk;
     if(ok){right++;day.r++}else{day.w++}
     const st=S.w[a.id];
     if(st){
@@ -457,7 +461,7 @@ function openBlindReview(){
     const ipa=ipaOf(a.w[0]);
     const d=document.createElement('div');d.className='wline';
     d.innerHTML=`<span class="we" style="min-width:130px">${a.w[0]}${ipa?`<i class="wipa">/${ipa}/</i>`:''}</span>
-      <span class="wc">${a.w[2]}<br><b style="color:${a.ok?'#149c66':'#e04444'}">你写：${a.given||'（空）'}</b>${a.ok?'':' <span style="color:#8a97ad">'+'正确：'+a.w[0]+'</span>'}</span>
+      <span class="wc">${a.w[2]}<br><b style="color:${a.wordOk?'#149c66':'#e04444'}">你写：${a.given||'（空）'}</b>${a.wordOk?'':' <span style="color:#8a97ad">'+'正确：'+a.w[0]+'</span>'}${a.ipaText?`<br><b style="color:${a.ipaOk?'#149c66':'#e04444'}">音标：/${a.ipaGiven||'（空）'}/</b>${a.ipaOk?'':' <span style="color:#8a97ad">正确：/'+a.ipaText+'/</span>'}`:''}</span>
       <span style="font-size:18px">${a.ok?'✅':'❌'}</span>`;
     box.appendChild(d);
   });
@@ -530,6 +534,7 @@ function quitSession(){
 }
 
 let CUR=null,ANSWER='',SLOTS=[],POS=0,FIRST=true,HINTS=0,RETRY=0;
+let PHONE_TARGET=[],PHONE_PICKED=[],PHONE_OPTIONS=[],PHONE_IPA='';
 function nextCard(){
   document.getElementById('fb').textContent='';document.getElementById('fb').className='fb';
   if(SES.sprint){
@@ -561,12 +566,81 @@ function showPresent(){
 }
 function presentDone(){CUR.phase='spell';showSpell()}
 function speakCur(){speak(CUR.w[0])}
+function cleanIpa(ipa){return (ipa||'').replace(/[ˈˌ\/\s]/g,'')}
+function tokenizeIpa(ipa){
+  const s=cleanIpa(ipa);
+  const multi=['iː','uː','ɑː','ɔː','ɜː','eɪ','aɪ','ɔɪ','əʊ','aʊ','ɪə','eə','ʊə','tʃ','dʒ'];
+  const out=[];
+  for(let i=0;i<s.length;){
+    const m=multi.find(x=>s.slice(i,i+x.length)===x);
+    if(m){out.push(m);i+=m.length}
+    else{out.push(s[i]);i++}
+  }
+  return out.filter(Boolean);
+}
+function shuffleCopy(a){const b=a.slice();shuffle(b);return b}
+function hasPhoneTask(){return PHONE_TARGET.length>0}
+function phoneAnswer(){return PHONE_PICKED.map(x=>x.t).join('')}
+function phoneCorrect(){return !hasPhoneTask()||phoneAnswer()===PHONE_TARGET.join('')}
+function setupPhonics(ipa){
+  PHONE_IPA=ipa||'';
+  PHONE_TARGET=tokenizeIpa(ipa);
+  PHONE_PICKED=[];
+  PHONE_OPTIONS=shuffleCopy(PHONE_TARGET.map((t,i)=>({t,i})));
+  const area=document.getElementById('phonics-area');
+  if(!PHONE_TARGET.length){area.style.display='none';renderPhonics();return}
+  area.style.display='block';
+  renderPhonics();
+}
+function renderPhonics(state){
+  const slots=document.getElementById('phonics-slots');
+  const opts=document.getElementById('phonics-options');
+  if(!slots||!opts)return;
+  slots.innerHTML='';opts.innerHTML='';
+  PHONE_TARGET.forEach((t,i)=>{
+    const d=document.createElement('div');
+    d.className='phone-slot'+(PHONE_PICKED[i]?' filled':'')+(state==='ok'?' ok':state==='bad'?' bad':'');
+    d.textContent=PHONE_PICKED[i]?PHONE_PICKED[i].t:'';
+    slots.appendChild(d);
+  });
+  PHONE_OPTIONS.forEach((p,idx)=>{
+    const b=document.createElement('button');
+    b.className='phone-option';
+    b.textContent=p.t;
+    b.disabled=!!p.used||PHONE_PICKED.length>=PHONE_TARGET.length||!!(CUR&&CUR._locked);
+    b.onclick=()=>pickPhoneme(idx);
+    opts.appendChild(b);
+  });
+}
+function pickPhoneme(idx){
+  if(!CUR||CUR.phase!=='spell'||CUR._locked)return;
+  const p=PHONE_OPTIONS[idx];
+  if(!p||p.used||PHONE_PICKED.length>=PHONE_TARGET.length)return;
+  p.used=true;PHONE_PICKED.push(p);
+  renderPhonics();
+  updateSubmitState();
+  beep('tap');
+}
+function deletePhoneme(){
+  if(!CUR||CUR.phase!=='spell'||CUR._locked||!PHONE_PICKED.length)return;
+  const p=PHONE_PICKED.pop();
+  p.used=false;
+  renderPhonics();
+  updateSubmitState();
+  beep('tap');
+}
+function resetPhonics(){
+  PHONE_OPTIONS.forEach(p=>p.used=false);
+  PHONE_PICKED=[];
+  renderPhonics();
+}
 function showSpell(){
   const w=CUR.w;
   FIRST=CUR.attempted?false:true;HINTS=0;RETRY=CUR.retry||0;
   const ipa=ipaOf(w[0]);
+  const phoneTokens=tokenizeIpa(ipa);
   document.getElementById('qcard').innerHTML=
-    `<span class="pos">${w[1]||'词组'}</span>${ipa?`<div class="ipa">/${ipa}/</div>`:''}<div class="cn">${w[2]}</div><button class="spk" onclick="speakCur()">🔊</button>`;
+    `<span class="pos">${w[1]||'词组'}</span>${ipa&&!phoneTokens.length?`<div class="ipa">/${ipa}/</div>`:''}<div class="cn">${w[2]}</div><button class="spk" onclick="speakCur()">🔊</button>`;
   document.getElementById('present-area').style.display='none';
   document.getElementById('spell-area').style.display='block';
   ANSWER=w[0];SLOTS=[];POS=-1;
@@ -580,6 +654,7 @@ function showSpell(){
   POS=0;markCursor();
   const inp=document.getElementById('spell-input');
   inp.value='';
+  setupPhonics(ipa);
   inp.setAttribute('inputmode',S.set.kbMode?'text':'none');
   document.getElementById('btn-kb-toggle').textContent=S.set.kbMode?'✍️ 手写':'⌨️ 键盘';
   document.getElementById('spell-hint').textContent=S.set.kbMode?'⌨️ 已切到系统键盘，可以打字或点麦克风说话':'✍️ 用 Apple Pencil 直接在框里写字就行';
@@ -603,9 +678,16 @@ function toggleKeyboard(){
 }
 function markCursor(){SLOTS.forEach((s,j)=>s.el.classList.toggle('cur',j===POS))}
 function letterAnswer(){return ANSWER.toLowerCase().replace(/[^a-z]/g,'')}
+function typedLetterCount(){
+  const inp=document.getElementById('spell-input');
+  return inp?inp.value.toLowerCase().replace(/[^a-z]/g,'').length:0;
+}
 function updateSubmitState(count){
   const btn=document.getElementById('btn-submit');
-  if(btn)btn.disabled=count<SLOTS.length;
+  const letters=count===undefined?typedLetterCount():count;
+  const wordReady=letters>=SLOTS.length;
+  const phoneReady=!hasPhoneTask()||PHONE_PICKED.length>=PHONE_TARGET.length;
+  if(btn)btn.disabled=!(wordReady&&phoneReady);
 }
 function syncInputToTiles(){
   if(!CUR||CUR.phase!=='spell')return;
@@ -617,7 +699,7 @@ function syncInputToTiles(){
   });
   POS=Math.min(letters.length,SLOTS.length);markCursor();
   updateSubmitState(letters.length);
-  if(letters.length>=SLOTS.length)setTimeout(()=>{if(CUR&&!CUR._locked){if(SES&&SES.mode==='blind')blindSubmit();else check();}},250);
+  if(letters.length>=SLOTS.length&&!hasPhoneTask())setTimeout(()=>{if(CUR&&!CUR._locked){if(SES&&SES.mode==='blind')blindSubmit();else check();}},250);
 }
 function deleteLast(){
   if(!CUR||CUR.phase!=='spell')return;
@@ -649,6 +731,11 @@ function submitSpell(){
     inp.focus();
     return;
   }
+  if(hasPhoneTask()&&PHONE_PICKED.length<PHONE_TARGET.length){
+    toast('音标还没拼完哦');
+    inp.focus();
+    return;
+  }
   if(SES&&SES.mode==='blind'){blindSubmit();return;}
   check();
 }
@@ -657,16 +744,20 @@ function check(){
   CUR._locked=true;
   const inp=document.getElementById('spell-input');
   const typed=inp.value.toLowerCase().replace(/[^a-z]/g,'');
-  const ok=typed.length>0&&typed===letterAnswer();
+  const wordOk=typed.length>0&&typed===letterAnswer();
+  const phoneOk=phoneCorrect();
+  const ok=wordOk&&phoneOk;
   const fb=document.getElementById('fb');
   if(ok){
     SLOTS.forEach(s=>{s.el.classList.remove('cur');s.el.classList.add('ok')});
+    renderPhonics('ok');
     beep('ok');
     grade(true);
   }else{
     SLOTS.forEach((s,i)=>{if((typed[i]||'')!==s.ch.toLowerCase())s.el.classList.add('bad');s.el.classList.remove('cur')});
+    if(hasPhoneTask())renderPhonics(phoneOk?'ok':'bad');
     beep('bad');
-    fb.innerHTML=`正确拼写：<b style="font-size:22px">${ANSWER}</b>`;
+    fb.innerHTML=`正确拼写：<b style="font-size:22px">${ANSWER}</b>${hasPhoneTask()?`<br>正确音标：<b style="font-size:20px">/${PHONE_IPA}/</b>`:''}`;
     fb.className='fb badc';
     speak(ANSWER);
     grade(false);
@@ -745,6 +836,7 @@ function grade(ok){
     }else{
       // 重拼同一个词
       setTimeout(()=>{SLOTS.forEach(s=>{s.val='';s.el.textContent=s.el.classList.contains('fix')?s.el.textContent:'';s.el.classList.remove('bad','ok')});
+        resetPhonics();
         // 错2次后给灰色描红
         if(CUR.retry>=2)SLOTS.forEach(s=>{s.el.textContent=s.ch.toLowerCase();s.el.classList.add('ghost')});
         POS=0;markCursor();CUR._locked=false;

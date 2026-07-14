@@ -81,6 +81,11 @@
       <button class="delbtn" id="btn-del" onclick="deleteLast()">⌫</button>
     </div>
     <p class="spell-hint" id="spell-hint">✍️ 用 Apple Pencil 直接在框里写字就行</p>
+    <div class="phonics-area" id="phonics-area" style="display:none">
+      <div class="phonics-head"><span>🔤 音标默写</span><button class="phonics-del" onclick="deletePhoneme()">⌫</button></div>
+      <div class="phonics-slots" id="phonics-slots"></div>
+      <div class="phonics-options" id="phonics-options"></div>
+    </div>
     <div class="srow">
       <button class="sbtn" id="btn-hint" onclick="useHint()">💡 提示</button>
       <button class="sbtn" id="btn-flag" onclick="toggleFlag()" style="display:none">🏳️ 标记不确定</button>

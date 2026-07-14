@@ -88,6 +88,19 @@ body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background
 .delbtn:active{transform:translateY(2px);box-shadow:0 1px 0 #f0b8b8}
 .spell-input:focus{border-color:#4a6cf7;background:#fff}
 .spell-hint{text-align:center;font-size:12px;color:#9aa8bf;margin-top:6px}
+.phonics-area{background:#fff;border:2px solid #e5edf7;border-radius:18px;padding:12px;margin-top:12px}
+.phonics-head{display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:800;color:#5b6b88;margin-bottom:10px}
+.phonics-del{border:none;background:#ffe3e3;color:#e04444;border-radius:12px;width:44px;height:36px;font-size:20px;font-weight:800;box-shadow:0 2px 0 #f0b8b8}
+.phonics-slots,.phonics-options{display:flex;flex-wrap:wrap;gap:7px;justify-content:center}
+.phonics-slots{min-height:40px;margin-bottom:10px}
+.phonics-slots:before,.phonics-slots:after{content:"/";font-family:"Doulos SIL","Charis SIL","Segoe UI",serif;font-size:28px;font-weight:800;color:#9aa8bf;line-height:38px}
+.phone-slot,.phone-option{min-width:38px;height:38px;padding:0 9px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:"Doulos SIL","Charis SIL","Segoe UI",serif;font-size:22px;font-weight:800}
+.phone-slot{background:#f5f8fc;border:2px dashed #dbe4f0;color:#4d5d75}
+.phone-slot.filled{background:#eef4ff;border-style:solid;border-color:#9fc5ff;color:#2b3a55}
+.phone-slot.ok{background:#d9f7e5;border-color:#3ecf8e;color:#149c66}
+.phone-slot.bad{background:#ffe3e3;border-color:#ff8a8a;color:#e04444}
+.phone-option{border:none;background:#edf7ff;color:#315c9f;box-shadow:0 3px 0 #c8d9ee}
+.phone-option:disabled{opacity:.35;box-shadow:0 1px 0 #c8d9ee}
 .srow{display:flex;gap:8px;margin-top:10px}
 .sbtn{flex:1;border:none;border-radius:14px;padding:13px;font-size:16px;font-weight:700;cursor:pointer;background:#fff;color:#4a6cf7;box-shadow:0 3px 0 #ccd6e4}
 .sbtn.primary{background:linear-gradient(135deg,#4a6cf7,#7a5cff);color:#fff;box-shadow:0 3px 0 #3a55c4}
