@@ -14,12 +14,155 @@ const NOTE_MAX_HINT_WORDS=UNITS.reduce((max,u)=>Math.max(max,...u.w.map(w=>Strin
 
 /* ================= 状态存取 ================= */
 const KEY='nce1_progress_v1';
-const STATE_VERSION=3;
-let S;
-function defaultState(){
-  return {v:STATE_VERSION,w:{},notes:{},xp:0,badges:[],days:{},streak:0,lastDay:null,rev:0,combo:0,bestCombo:0,set:{n:10,rate:0.85,sound:true,kbMode:false},shields:0,shieldDate:null,missions:null,wrongPool:{},sprintBest:0,revengeFixed:0,tierBadges:{},blindDone:0,blindHighScore:0};
+const STATE_VERSION=6;
+let ROOT,S;
+const SKINS=[
+  {id:'default',name:'方块小狐狸',rarity:'普通',cost:0,theme:'default',desc:'经典方块背包'},
+  {id:'grass',name:'草地方块探险家',rarity:'普通',theme:'grass',desc:'草块帽和绿披风'},
+  {id:'mine',name:'矿洞小勇士',rarity:'稀有',theme:'mine',desc:'矿灯和岩石护甲'},
+  {id:'snow',name:'雪原建造师',rarity:'稀有',theme:'snow',desc:'冰晶帽和雪块披风'},
+  {id:'lava',name:'熔岩守护者',rarity:'史诗',theme:'lava',desc:'熔岩边框和火光护符'},
+  {id:'sky',name:'天空岛飞行员',rarity:'稀有',theme:'sky',desc:'云朵翼和蓝天背包'},
+  {id:'circuit',name:'红石工程师',rarity:'史诗',theme:'circuit',desc:'机关线圈和按钮徽章'},
+  {id:'crystal',name:'晶石学霸',rarity:'史诗',theme:'crystal',desc:'晶洞光翼和紫晶帽'},
+  {id:'castle',name:'黄金城堡',rarity:'传说',theme:'castle',desc:'金砖王冠和城堡披风'},
+  {id:'ender',name:'末影星空',rarity:'传说',theme:'ender',desc:'深空披风和传送光环'},
+  {id:'library',name:'图书馆法师',rarity:'稀有',theme:'library',desc:'书页斗篷和知识徽章'},
+  {id:'diamond',name:'钻石护卫',rarity:'传说',theme:'diamond',desc:'钻石护甲和守护光翼'}
+];
+const SKIN_MAP=Object.fromEntries(SKINS.map(s=>[s.id,s]));
+const SKIN_ALIASES={forest:'grass',ocean:'sky',star:'ender',candy:'library',gold:'castle'};
+const MATERIALS=[
+  {id:'wood',name:'木头',short:'木',color:'#b77836'},
+  {id:'stone',name:'石头',short:'石',color:'#7f8a99'},
+  {id:'grass',name:'草块',short:'草',color:'#49a24a'},
+  {id:'snow',name:'雪块',short:'雪',color:'#95d9ff'},
+  {id:'crystal',name:'晶石',short:'晶',color:'#8c6bff'},
+  {id:'stardust',name:'星尘',short:'星',color:'#f0b92f'}
+];
+const MATERIAL_MAP=Object.fromEntries(MATERIALS.map(m=>[m.id,m]));
+const BUILD_ITEMS=[
+  {id:'grass_tile',name:'草地方块',kind:'tile',rarity:'普通',cost:{grass:1},unlock:true,desc:'给小岛铺一块草地'},
+  {id:'wood_house',name:'木头小屋',kind:'building',rarity:'普通',cost:{wood:6,stone:2},unlock:true,desc:'第一座学习小屋'},
+  {id:'tree',name:'方块树',kind:'decor',rarity:'普通',cost:{wood:3,grass:2},desc:'让小岛更有生气'},
+  {id:'bridge',name:'木桥',kind:'decor',rarity:'稀有',cost:{wood:5,stone:1},desc:'连接两片学习区域'},
+  {id:'bookshelf',name:'书架',kind:'building',rarity:'稀有',cost:{wood:4,crystal:1},desc:'收藏学过的知识'},
+  {id:'word_monument',name:'单词碑',kind:'building',rarity:'稀有',cost:{stone:5,crystal:2},earned:true,gate:'完成整课后解锁',desc:'纪念完成的单词'},
+  {id:'review_tower',name:'复习塔',kind:'building',rarity:'史诗',cost:{stone:6,snow:4,crystal:2},desc:'提醒定期复习'},
+  {id:'wrong_furnace',name:'错题熔炉',kind:'building',rarity:'史诗',cost:{stone:6,crystal:2,stardust:1},earned:true,gate:'错题复仇全对后解锁',desc:'把错题炼成材料'},
+  {id:'star_fountain',name:'星星喷泉',kind:'decor',rarity:'传说',cost:{crystal:5,stardust:5},desc:'小岛中心装饰'},
+  {id:'pet_den',name:'宠物窝',kind:'building',rarity:'传说',cost:{wood:8,grass:4,stardust:3},desc:'学习伙伴休息的地方'}
+];
+const BUILD_MAP=Object.fromEntries(BUILD_ITEMS.map(b=>[b.id,b]));
+function skinArt(id,cls){
+  const theme=(SKIN_MAP[id]||SKIN_MAP.default).theme;
+  const cfg={
+    default:{bg:'#fff3df',accent:'#ffb14d',hat:'#ffd34d',wing:''},
+    grass:{bg:'#ddf3c9',accent:'#49a24a',hat:'#5fbf55',wing:'#a7dc72'},
+    mine:{bg:'#e2e6ed',accent:'#6f7f91',hat:'#707784',wing:'#9aa4b5'},
+    snow:{bg:'#e4f8ff',accent:'#57b8e8',hat:'#bdefff',wing:'#d6f7ff'},
+    lava:{bg:'#ffe2c8',accent:'#ef5b2a',hat:'#ff7a2f',wing:'#ffb34a'},
+    sky:{bg:'#ddf3ff',accent:'#4facfe',hat:'#9de2ff',wing:'#c8f1ff'},
+    circuit:{bg:'#ffe2e2',accent:'#d83b3b',hat:'#333b4d',wing:'#ff7a7a'},
+    crystal:{bg:'#eee5ff',accent:'#8c6bff',hat:'#b19cff',wing:'#d8c9ff'},
+    castle:{bg:'#fff0bf',accent:'#d69a00',hat:'#ffd34d',wing:'#ffe08a'},
+    ender:{bg:'#e4dcff',accent:'#5e43bd',hat:'#1e2540',wing:'#9d7dff'},
+    library:{bg:'#fff0d6',accent:'#8d5a2b',hat:'#b77836',wing:'#e8c88f'},
+    diamond:{bg:'#dcfbff',accent:'#24b6c9',hat:'#8df3ff',wing:'#b6f8ff'}
+  }[theme];
+  const wing=cfg.wing?`<rect x="18" y="53" width="22" height="27" rx="4" fill="${cfg.wing}" stroke="#40516d" stroke-width="3"/><rect x="80" y="53" width="22" height="27" rx="4" fill="${cfg.wing}" stroke="#40516d" stroke-width="3"/>`:'';
+  return `<svg class="${cls||'skin-svg'} ${theme}" viewBox="0 0 120 120" aria-hidden="true">
+    <rect x="6" y="6" width="108" height="108" rx="28" fill="${cfg.bg}"/>
+    ${wing}
+    <rect x="34" y="46" width="52" height="44" rx="8" fill="#f79037" stroke="#8a4a24" stroke-width="4"/>
+    <rect x="40" y="28" width="18" height="23" rx="3" fill="#f79037" stroke="#8a4a24" stroke-width="4"/>
+    <rect x="62" y="28" width="18" height="23" rx="3" fill="#f79037" stroke="#8a4a24" stroke-width="4"/>
+    <rect x="43" y="66" width="34" height="19" rx="5" fill="#fff1df"/>
+    <rect x="47" y="57" width="8" height="8" rx="2" fill="#2b2630"/><rect x="65" y="57" width="8" height="8" rx="2" fill="#2b2630"/>
+    <path d="M57 72h6" stroke="#62351d" stroke-width="3" stroke-linecap="round"/>
+    <rect x="42" y="36" width="36" height="13" rx="3" fill="${cfg.hat}" stroke="#40516d" stroke-width="3"/>
+    <rect x="52" y="84" width="16" height="16" rx="4" fill="${cfg.accent}" stroke="#fff" stroke-width="3"/>
+    <path d="M60 88l2 4 4 .5-3 2.5.8 4-3.8-2-3.8 2 .8-4-3-2.5 4-.5z" fill="#fff7bf"/>
+  </svg>`;
 }
-function migrateState(d){
+function defaultParentStats(){
+  return {totalSec:0,sessions:0,answers:0,correct:0,days:{},units:{}};
+}
+function defaultRewards(){
+  return {coins:80,inventory:['default'],equipped:'default',gacha:{pulls:0,pity:0,history:[],daily:{}}};
+}
+function defaultBuild(){
+  return {materials:{wood:0,stone:0,grass:0,snow:0,crystal:0,stardust:0},island:{size:8,tiles:[]},unlockedBlocks:['grass_tile','wood_house'],placed:[],starterClaimed:false};
+}
+function defaultState(){
+  return {v:STATE_VERSION,w:{},notes:{},xp:0,badges:[],days:{},streak:0,lastDay:null,rev:0,combo:0,bestCombo:0,set:{n:10,rate:0.85,sound:true,kbMode:false,gachaOn:true,dailyPullLimit:3},shields:0,shieldDate:null,missions:null,wrongPool:{},sprintBest:0,revengeFixed:0,tierBadges:{},blindDone:0,blindHighScore:0,parent:defaultParentStats(),rewards:defaultRewards(),build:defaultBuild()};
+}
+function normalizeRewards(raw){
+  const d=defaultRewards();
+  const r=Object.assign(d,raw&&typeof raw==='object'?raw:{});
+  r.coins=Number.isFinite(r.coins)?Math.max(0,Math.round(r.coins)):d.coins;
+  r.inventory=Array.isArray(r.inventory)?r.inventory.map(id=>SKIN_ALIASES[id]||id).filter(id=>SKIN_MAP[id]):['default'];
+  if(!r.inventory.includes('default'))r.inventory.unshift('default');
+  r.inventory=[...new Set(r.inventory)];
+  r.equipped=SKIN_ALIASES[r.equipped]||r.equipped;
+  r.equipped=SKIN_MAP[r.equipped]&&r.inventory.includes(r.equipped)?r.equipped:'default';
+  r.gacha=Object.assign({pulls:0,pity:0,history:[]},r.gacha&&typeof r.gacha==='object'?r.gacha:{});
+  r.gacha.pulls=Number.isFinite(r.gacha.pulls)?Math.max(0,Math.round(r.gacha.pulls)):0;
+  r.gacha.pity=Number.isFinite(r.gacha.pity)?Math.max(0,Math.round(r.gacha.pity)):0;
+  r.gacha.history=Array.isArray(r.gacha.history)?r.gacha.history.slice(0,30):[];
+  r.gacha.daily=r.gacha.daily&&typeof r.gacha.daily==='object'?r.gacha.daily:{};
+  return r;
+}
+function normalizeBuild(raw){
+  const b=Object.assign(defaultBuild(),raw&&typeof raw==='object'?raw:{});
+  const def=defaultBuild();
+  b.materials=Object.assign({},def.materials,b.materials||{});
+  MATERIALS.forEach(m=>{b.materials[m.id]=Number.isFinite(b.materials[m.id])?Math.max(0,Math.round(b.materials[m.id])):0});
+  b.island=Object.assign({},def.island,b.island||{});
+  b.island.size=Number.isFinite(b.island.size)?Math.min(12,Math.max(6,Math.round(b.island.size))):8;
+  b.island.tiles=Array.isArray(b.island.tiles)?b.island.tiles.filter(t=>Number.isFinite(t.x)&&Number.isFinite(t.y)):[];
+  b.unlockedBlocks=Array.isArray(b.unlockedBlocks)?b.unlockedBlocks.filter(id=>BUILD_MAP[id]):def.unlockedBlocks.slice();
+  b.unlockedBlocks=[...new Set(b.unlockedBlocks.concat(def.unlockedBlocks))];
+  b.placed=Array.isArray(b.placed)?b.placed.filter(p=>BUILD_MAP[p.itemId]&&Number.isFinite(p.x)&&Number.isFinite(p.y)).map(p=>({id:p.id||buildPlacedId(),itemId:p.itemId,x:Math.round(p.x),y:Math.round(p.y),level:Math.min(3,Math.max(1,Math.round(p.level||1)))})):[];
+  b.starterClaimed=!!b.starterClaimed;
+  return b;
+}
+function normalizeParentStats(raw,legacy){
+  const p=Object.assign(defaultParentStats(),raw&&typeof raw==='object'?raw:{});
+  p.totalSec=Number.isFinite(p.totalSec)?Math.max(0,Math.round(p.totalSec)):0;
+  p.sessions=Number.isFinite(p.sessions)?Math.max(0,Math.round(p.sessions)):0;
+  p.answers=Number.isFinite(p.answers)?Math.max(0,Math.round(p.answers)):0;
+  p.correct=Number.isFinite(p.correct)?Math.max(0,Math.round(p.correct)):0;
+  p.days=p.days&&typeof p.days==='object'?p.days:{};
+  p.units=p.units&&typeof p.units==='object'?p.units:{};
+  if(!raw&&legacy){
+    let r=0,w=0;
+    Object.values(legacy.days||{}).forEach(d=>{r+=Number(d.r)||0;w+=Number(d.w)||0});
+    p.answers=r+w;p.correct=r;
+    Object.entries(legacy.w||{}).forEach(([id,st])=>{
+      const ui=unitIndexFromId(id);
+      if(ui===null)return;
+      const u=ensureParentUnitIn(p,ui);
+      const ok=Number(st&&st.r)||0,bad=Number(st&&st.wr)||0;
+      u.answers+=ok+bad;u.correct+=ok;u.wrong+=bad;
+    });
+  }
+  Object.keys(p.units).forEach(k=>{
+    const u=Object.assign({answers:0,correct:0,wrong:0,sec:0,last:null},p.units[k]||{});
+    u.answers=Number.isFinite(u.answers)?Math.max(0,Math.round(u.answers)):0;
+    u.correct=Number.isFinite(u.correct)?Math.max(0,Math.round(u.correct)):0;
+    u.wrong=Number.isFinite(u.wrong)?Math.max(0,Math.round(u.wrong)):0;
+    u.sec=Number.isFinite(u.sec)?Math.max(0,Math.round(u.sec)):0;
+    p.units[k]=u;
+  });
+  return p;
+}
+function ensureParentUnitIn(parent,ui){
+  const key=String(ui);
+  if(!parent.units[key])parent.units[key]={answers:0,correct:0,wrong:0,sec:0,last:null};
+  return parent.units[key];
+}
+function migrateProfile(d){
   if(!d||typeof d!=='object'||!d.w)return null;
   const defaults=defaultState();
   const next=Object.assign({},defaults,d);
@@ -41,11 +184,37 @@ function migrateState(d){
   next.revengeFixed=Number.isFinite(next.revengeFixed)?next.revengeFixed:0;
   next.blindDone=Number.isFinite(next.blindDone)?next.blindDone:0;
   next.blindHighScore=Number.isFinite(next.blindHighScore)?next.blindHighScore:0;
+  next.parent=normalizeParentStats(d.parent,d);
+  next.rewards=normalizeRewards(d.rewards);
+  next.build=normalizeBuild(d.build);
   return next;
 }
-function load(){try{return migrateState(JSON.parse(localStorage.getItem(KEY)))}catch(e){return null}}
-S=load()||defaultState();
-function save(){localStorage.setItem(KEY,JSON.stringify(S))}
+function profileId(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function defaultRoot(profile){
+  const id=profileId();
+  return {v:STATE_VERSION,activeProfileId:id,profiles:{[id]:{id,name:'小朋友',avatar:'default',data:profile||defaultState()}}};
+}
+function migrateRoot(raw){
+  if(!raw||typeof raw!=='object')return null;
+  if(raw.profiles&&typeof raw.profiles==='object'){
+    const root={v:STATE_VERSION,activeProfileId:raw.activeProfileId,profiles:{}};
+    Object.entries(raw.profiles).forEach(([id,p])=>{
+      const data=migrateProfile(p&&p.data?p.data:p);
+      if(data)root.profiles[id]={id,name:(p&&p.name)||'小朋友',avatar:(p&&p.avatar)||'default',data};
+    });
+    const ids=Object.keys(root.profiles);
+    if(!ids.length)return defaultRoot(defaultState());
+    if(!root.profiles[root.activeProfileId])root.activeProfileId=ids[0];
+    return root;
+  }
+  const profile=migrateProfile(raw);
+  return profile?defaultRoot(profile):null;
+}
+function loadRoot(){try{return migrateRoot(JSON.parse(localStorage.getItem(KEY)))}catch(e){return null}}
+ROOT=loadRoot()||defaultRoot(defaultState());
+S=ROOT.profiles[ROOT.activeProfileId].data;
+function activeProfile(){return ROOT.profiles[ROOT.activeProfileId]}
+function save(){if(ROOT&&S){activeProfile().data=S;ROOT.v=STATE_VERSION;localStorage.setItem(KEY,JSON.stringify(ROOT))}}
 save();
 function todayStr(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function addDays(n){const d=new Date();d.setDate(d.getDate()+n);return todayStr(d)}
@@ -60,6 +229,331 @@ function markActivity(){
   }
   if(!S.days[t])S.days[t]={n:0,rv:0,r:0,w:0};
   return S.days[t];
+}
+function unitIndexFromId(id){
+  const m=String(id||'').match(/^(?:note-)?(\d+)-/);
+  if(!m)return null;
+  const ui=Number(m[1]);
+  return Number.isInteger(ui)&&ui>=0&&ui<UNITS.length?ui:null;
+}
+function ensureParentStats(){
+  S.parent=normalizeParentStats(S.parent,S);
+  return S.parent;
+}
+function ensureParentUnit(ui){
+  return ensureParentUnitIn(ensureParentStats(),ui);
+}
+function recordParentAnswer(item,ok){
+  const ui=unitIndexFromId(item&&item.id);
+  if(ui===null)return;
+  const p=ensureParentStats();
+  p.answers++;
+  if(ok)p.correct++;
+  const u=ensureParentUnit(ui);
+  u.answers++;
+  if(ok)u.correct++;
+  else u.wrong++;
+  u.last=todayStr();
+  if(SES&&SES.unitHits)SES.unitHits[ui]=(SES.unitHits[ui]||0)+1;
+}
+function recordParentSession(session){
+  if(!session||!session.startedAt)return;
+  const total=(session.right||0)+(session.wrong||0);
+  if(total<=0)return;
+  const sec=Math.max(5,Math.min(7200,Math.round((Date.now()-session.startedAt)/1000)));
+  const p=ensureParentStats();
+  p.totalSec+=sec;
+  p.sessions++;
+  const t=todayStr();
+  if(!p.days[t])p.days[t]={sec:0,sessions:0};
+  p.days[t].sec+=sec;
+  p.days[t].sessions++;
+  const hits=session.unitHits||{};
+  const hitTotal=Object.values(hits).reduce((s,n)=>s+n,0);
+  Object.entries(hits).forEach(([ui,n])=>{
+    const u=ensureParentUnit(+ui);
+    u.sec+=hitTotal?Math.round(sec*n/hitTotal):0;
+  });
+}
+function formatStudyTime(sec){
+  sec=Math.max(0,Math.round(sec||0));
+  if(sec<60)return sec+'秒';
+  const min=Math.round(sec/60);
+  if(min<60)return min+'分钟';
+  const h=Math.floor(min/60),m=min%60;
+  return m?h+'小时'+m+'分钟':h+'小时';
+}
+function parentAccuracy(correct,total){
+  return total?Math.round(correct/total*100)+'%':'-';
+}
+function buildPlacedId(){return 'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function ensureBuild(){
+  S.build=normalizeBuild(S.build);
+  return S.build;
+}
+function materialText(cost){
+  const parts=[];
+  Object.entries(cost||{}).forEach(([id,n])=>parts.push(`${MATERIAL_MAP[id]?MATERIAL_MAP[id].short:id}${n}`));
+  return parts.length?parts.join(' '):'免费';
+}
+function canAfford(cost){
+  const b=ensureBuild();
+  return Object.entries(cost||{}).every(([id,n])=>(b.materials[id]||0)>=n);
+}
+function spendMaterials(cost){
+  if(!canAfford(cost))return false;
+  const b=ensureBuild();
+  Object.entries(cost||{}).forEach(([id,n])=>b.materials[id]-=n);
+  return true;
+}
+function addMaterials(mat){
+  const b=ensureBuild();
+  Object.entries(mat||{}).forEach(([id,n])=>{if(MATERIAL_MAP[id])b.materials[id]=(b.materials[id]||0)+Math.max(0,Math.round(n))});
+}
+function claimStarterBuildPack(){
+  const b=ensureBuild();
+  if(b.starterClaimed){toast('新手礼包已经领过啦');return}
+  addMaterials({wood:16,stone:8,grass:14,crystal:2});
+  ensureBuild().starterClaimed=true;
+  save();renderIslandPage();toast('已领取新手建造礼包');
+}
+function awardMaterials(reason,result){
+  const right=(result&&result.right)||0,wrong=(result&&result.wrong)||0,mode=(result&&result.mode)||'learn';
+  const mat={wood:Math.max(1,Math.floor(right/3)),grass:Math.max(0,Math.floor(right/4))};
+  if(right>=5)mat.stone=(mat.stone||0)+1;
+  if(mode==='blind'&&right>=10)mat.snow=(mat.snow||0)+Math.max(1,Math.floor(right/10));
+  if(mode==='review'&&right>=8)mat.snow=(mat.snow||0)+1;
+  if(mode==='review'||mode==='revenge')mat.crystal=(mat.crystal||0)+Math.max(1,Math.floor(right/6));
+  if(mode==='note')mat.wood=(mat.wood||0)+1;
+  if(wrong===0&&right>0)mat.stardust=(mat.stardust||0)+1;
+  addMaterials(mat);
+  return mat;
+}
+function unlockBuildItem(itemId){
+  const b=ensureBuild();
+  if(!BUILD_MAP[itemId])return false;
+  if(!b.unlockedBlocks.includes(itemId))b.unlockedBlocks.push(itemId);
+  return true;
+}
+function blueprintCost(item){
+  if(item.rarity==='普通')return {wood:2,grass:2};
+  if(item.rarity==='稀有')return {wood:4,stone:3};
+  if(item.rarity==='史诗')return {stone:5,crystal:2};
+  return {crystal:4,stardust:3};
+}
+function unlockBuildByMaterials(itemId){
+  const item=BUILD_MAP[itemId];
+  if(!item)return;
+  if(ensureBuild().unlockedBlocks.includes(itemId)){selectBuildItem(itemId);return}
+  if(item.earned){toast(item.gate||'需要完成学习目标解锁');return}
+  const cost=blueprintCost(item);
+  if(!spendMaterials(cost)){toast('解锁蓝图材料不够：'+materialText(cost));return}
+  unlockBuildItem(itemId);
+  save();renderBuildInventory();renderMaterialBar();toast('已解锁蓝图：'+item.name);
+}
+let SELECTED_BUILD_ITEM='grass_tile';
+function selectBuildItem(itemId){
+  if(!BUILD_MAP[itemId])return;
+  SELECTED_BUILD_ITEM=itemId;
+  renderBuildInventory();
+}
+function placedAt(x,y){
+  return ensureBuild().placed.find(p=>p.x===x&&p.y===y);
+}
+function tileAt(x,y){
+  return ensureBuild().island.tiles.find(t=>t.x===x&&t.y===y);
+}
+function placeBuildItem(itemId,x,y){
+  const b=ensureBuild(),item=BUILD_MAP[itemId];
+  if(!item)return;
+  if(!b.unlockedBlocks.includes(itemId)){toast('还没有解锁这个蓝图');return}
+  if(x<0||y<0||x>=b.island.size||y>=b.island.size)return;
+  if(item.kind!=='tile'&&placedAt(x,y)){toast('这里已经有建筑啦');return}
+  if(item.kind==='tile'&&tileAt(x,y)){toast('这块地已经铺好了');return}
+  if(!spendMaterials(item.cost)){toast('材料不够：'+materialText(item.cost));return}
+  const next=ensureBuild();
+  if(item.kind==='tile')next.island.tiles.push({x,y,itemId});
+  else next.placed.push({id:buildPlacedId(),itemId,x,y,level:1});
+  save();renderIsland();renderBuildInventory();
+}
+function removeBuildItem(placedId){
+  const b=ensureBuild();
+  const idx=b.placed.findIndex(p=>p.id===placedId);
+  if(idx<0)return;
+  b.placed.splice(idx,1);
+  save();renderIsland();renderBuildInventory();toast('已收回建筑');
+}
+function upgradeBuildItem(placedId){
+  const b=ensureBuild();
+  const p=b.placed.find(x=>x.id===placedId);
+  if(!p||p.level>=3){toast('已经满级啦');return}
+  const item=BUILD_MAP[p.itemId],cost={};
+  Object.entries(item.cost||{}).forEach(([id,n])=>cost[id]=Math.max(1,Math.ceil(n*(p.level+1)/2)));
+  if(!spendMaterials(cost)){toast('升级材料不够：'+materialText(cost));return}
+  const fresh=ensureBuild().placed.find(x=>x.id===placedId);
+  if(fresh)fresh.level++;
+  save();renderIsland();renderBuildInventory();toast(`${item.name} 升到 ${fresh?fresh.level:p.level} 级`);
+}
+function buildArt(itemId,level){
+  const item=BUILD_MAP[itemId]||BUILD_MAP.grass_tile;
+  const lv=level||1;
+  const label={grass_tile:'▦',wood_house:'⌂',tree:'♣',bridge:'=',bookshelf:'▤',word_monument:'碑',review_tower:'塔',wrong_furnace:'炉',star_fountain:'✦',pet_den:'窝'}[item.id]||'■';
+  return `<span class="build-art ${item.id} lv${lv}">${label}</span>`;
+}
+function renderIsland(){
+  const b=ensureBuild();
+  const grid=document.getElementById('island-grid');
+  if(!grid)return;
+  grid.style.gridTemplateColumns=`repeat(${b.island.size},1fr)`;
+  grid.innerHTML='';
+  for(let y=0;y<b.island.size;y++){
+    for(let x=0;x<b.island.size;x++){
+      const tile=tileAt(x,y),placed=placedAt(x,y);
+      const cell=document.createElement('button');
+      cell.className='island-cell'+(tile?' has-tile':'')+(placed?' has-build':'');
+      cell.innerHTML=placed?`${buildArt(placed.itemId,placed.level)}<i>${placed.level}</i>`:(tile?buildArt(tile.itemId,1):'');
+      cell.onclick=()=>{
+        if(placed){showBuildDetail(placed.id);return}
+        placeBuildItem(SELECTED_BUILD_ITEM,x,y);
+      };
+      grid.appendChild(cell);
+    }
+  }
+  renderMaterialBar();
+}
+function renderMaterialBar(){
+  const bar=document.getElementById('material-bar');
+  if(!bar)return;
+  const b=ensureBuild();
+  bar.innerHTML=MATERIALS.map(m=>`<span style="--mc:${m.color}"><b>${m.short}</b>${b.materials[m.id]||0}</span>`).join('');
+}
+function renderBuildInventory(){
+  const box=document.getElementById('build-inventory');
+  if(!box)return;
+  const b=ensureBuild();
+  box.innerHTML='';
+  BUILD_ITEMS.forEach(item=>{
+    const unlocked=b.unlockedBlocks.includes(item.id),selected=SELECTED_BUILD_ITEM===item.id;
+    const d=document.createElement('button');
+    d.className='build-tool'+(selected?' on':'')+(unlocked?'':' locked');
+    d.innerHTML=`${buildArt(item.id,1)}<b>${item.name}</b><i>${unlocked?materialText(item.cost):(item.earned?item.gate:'蓝图 '+materialText(blueprintCost(item)))}</i>`;
+    d.onclick=()=>unlocked?selectBuildItem(item.id):unlockBuildByMaterials(item.id);
+    box.appendChild(d);
+  });
+}
+function showBuildDetail(placedId){
+  const p=ensureBuild().placed.find(x=>x.id===placedId);
+  if(!p)return;
+  const item=BUILD_MAP[p.itemId];
+  const box=document.getElementById('build-detail');
+  box.style.display='block';
+  box.innerHTML=`<b>${item.name} · ${p.level}级</b><p>${item.desc}</p><div class="note-actions"><button class="sbtn primary" onclick="upgradeBuildItem('${p.id}')">升级</button><button class="sbtn" onclick="removeBuildItem('${p.id}')">收回</button></div>`;
+}
+function renderIslandPage(){
+  applySkin();ensureBuild();renderMaterialBar();renderIsland();renderBuildInventory();
+  const claim=document.getElementById('build-starter-claim');
+  if(claim)claim.style.display=ensureBuild().starterClaimed?'none':'block';
+  const detail=document.getElementById('build-detail');if(detail){detail.style.display='none';detail.innerHTML='';}
+}
+function currentSkin(){
+  const rewards=normalizeRewards(S.rewards);
+  S.rewards=rewards;
+  return SKIN_MAP[rewards.equipped]||SKIN_MAP.default;
+}
+function applySkin(){
+  const skin=currentSkin();
+  document.body.dataset.skin=skin.theme;
+  const mascot=document.getElementById('home-mascot');
+  if(mascot)mascot.innerHTML=skinArt(skin.id,'skin-mini');
+  const hero=document.getElementById('hero-fox');
+  if(hero)hero.innerHTML=skinArt(skin.id,'skin-hero-art');
+  const coin=document.getElementById('coin-count');
+  if(coin)coin.textContent=S.rewards.coins;
+  const name=document.getElementById('profile-name-home');
+  if(name)name.textContent=activeProfile().name;
+  const skinName=document.getElementById('skin-name-home');
+  if(skinName)skinName.textContent=skin.name;
+}
+function switchProfile(id){
+  if(!ROOT.profiles[id])return;
+  activeProfile().data=S;
+  ROOT.activeProfileId=id;
+  S=ROOT.profiles[id].data;
+  save();
+  toast('已切换到 '+ROOT.profiles[id].name);
+  go('home');
+}
+function createProfile(){
+  const name=prompt('给孩子起个昵称：','小朋友');
+  if(name===null)return;
+  const clean=name.trim().slice(0,12)||'小朋友';
+  activeProfile().data=S;
+  const id=profileId();
+  ROOT.profiles[id]={id,name:clean,avatar:'default',data:defaultState()};
+  ROOT.activeProfileId=id;
+  S=ROOT.profiles[id].data;
+  save();
+  toast('新账户创建好了');
+  go('home');
+}
+function renameProfile(){
+  const p=activeProfile();
+  const name=prompt('修改孩子昵称：',p.name);
+  if(name===null)return;
+  p.name=name.trim().slice(0,12)||p.name;
+  save();renderProfiles();renderHome();renderParent();
+}
+function renderProfiles(){
+  const box=document.getElementById('profile-list');
+  if(!box)return;
+  box.innerHTML='';
+  Object.values(ROOT.profiles).forEach(p=>{
+    const data=p.data||defaultState();
+    const skin=SKIN_MAP[(data.rewards&&data.rewards.equipped)||'default']||SKIN_MAP.default;
+    const d=document.createElement('div');
+    d.className='profile-row'+(p.id===ROOT.activeProfileId?' on':'');
+    d.innerHTML=`${skinArt(skin.id,'skin-profile-art')}<div><b>${safeText(p.name)}</b><i>${learnedCountFor(data)} 个词 · ${formatStudyTime((data.parent&&data.parent.totalSec)||0)}</i></div><button>${p.id===ROOT.activeProfileId?'使用中':'切换'}</button>`;
+    d.onclick=()=>switchProfile(p.id);
+    box.appendChild(d);
+  });
+}
+function learnedCountFor(data){return Object.keys((data&&data.w)||{}).length}
+function profileExportPayload(){
+  const p=activeProfile();
+  return {type:'nce-vocab-profile',v:STATE_VERSION,exportedAt:new Date().toISOString(),profile:{id:p.id,name:p.name,avatar:p.avatar,data:S}};
+}
+function exportProfile(){
+  const p=activeProfile();
+  const safeName=p.name.replace(/[\\/:*?"<>|]/g,'_');
+  const blob=new Blob([JSON.stringify(profileExportPayload(),null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='新概念单词岛_'+safeName+'_存档_'+todayStr()+'.json';a.click();
+  toast('已导出当前孩子存档');
+}
+function importProfileFile(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const raw=JSON.parse(r.result);
+      let incoming=null;
+      if(raw&&raw.type==='nce-vocab-profile'&&raw.profile)incoming=raw.profile;
+      else if(raw&&raw.w)incoming={name:'导入账户',avatar:'default',data:raw};
+      else if(raw&&raw.profiles){
+        const root=migrateRoot(raw),first=root&&root.profiles[root.activeProfileId];
+        if(first)incoming=first;
+      }
+      const data=migrateProfile(incoming&&incoming.data);
+      if(!data){toast('存档格式不对哦');return}
+      activeProfile().data=S;
+      const id=profileId();
+      ROOT.profiles[id]={id,name:(incoming.name||'导入账户').slice(0,12),avatar:incoming.avatar||'default',data};
+      ROOT.activeProfileId=id;S=data;save();
+      toast('孩子存档已导入');
+      go('home');
+    }catch(e){toast('存档格式不对哦')}
+  };
+  r.readAsText(f);inp.value='';
 }
 
 /* ================= 语音 ================= */
@@ -222,8 +716,8 @@ function missionStatus(){
 function claimMissionReward(){
   const st=missionStatus();
   if(st.finished<2||st.claimed)return;
-  S.missions.claimed=true;S.xp+=120;save();
-  toast('🎁 今日任务奖励 +120 XP！');checkBadges();renderHome();
+  S.missions.claimed=true;S.xp+=120;awardCoins(30,'今日任务');awardMaterials('今日任务',{right:8,wrong:0,mode:'daily'});save();
+  toast('🎁 今日任务奖励 +120 XP，+30 金币和材料！');checkBadges();renderHome();
 }
 function fixWrongInPool(id){if(S.wrongPool[id])delete S.wrongPool[id];}
 
@@ -234,6 +728,11 @@ function go(name){
   if(name==='home')renderHome();
   if(name==='units')renderUnits();
   if(name==='stats')renderStats();
+  if(name==='parent')renderParent();
+  if(name==='profiles')renderProfiles();
+  if(name==='island')renderIslandPage();
+  if(name==='bag')renderBag();
+  if(name==='gacha')renderGacha();
   if(name==='badges')renderBadges();
   if(name==='settings')renderSettings();
   window.scrollTo(0,0);
@@ -242,6 +741,7 @@ function go(name){
 /* ================= 首页 ================= */
 function renderHome(){
   ensureDailyShield();
+  applySkin();
   const h=new Date().getHours();
   const learned=learnedCount();
   document.getElementById('greet').textContent=h<12?'早上好呀！☀️':h<18?'下午好呀！🌤️':'晚上好呀！🌙';
@@ -306,7 +806,7 @@ function renderUnits(){
 
 /* ================= 单元详情（单词本） ================= */
 let SHEET_UI=0,SHEET_CARD_INDEX=0;
-let NOTE_RECALL_PARTS=[],NOTE_RECALL_INDEX=0,NOTE_RECALL_RESULTS=[];
+let NOTE_RECALL_PARTS=[],NOTE_RECALL_INDEX=0,NOTE_RECALL_RESULTS=[],NOTE_RECALL_STARTED=0,NOTE_RECALL_SESSION_SAVED=false;
 function renderStudyCard(){
   const u=UNITS[SHEET_UI];
   const i=Math.min(Math.max(SHEET_CARD_INDEX,0),u.w.length-1);
@@ -391,6 +891,8 @@ function startNoteRecall(){
   NOTE_RECALL_PARTS=parts;
   NOTE_RECALL_INDEX=0;
   NOTE_RECALL_RESULTS=[];
+  NOTE_RECALL_STARTED=Date.now();
+  NOTE_RECALL_SESSION_SAVED=false;
   renderNoteRecallQuestion();
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
   document.getElementById('scr-note').classList.add('on');
@@ -517,7 +1019,7 @@ function gradeSessionNote(ok,pct){
     let gain=pct>=95?10:7;
     if(!CUR.counted){
       CUR.counted=true;
-      if(noWrong){SES.right++;day.r++}
+      if(noWrong){SES.right++;day.r++;recordParentAnswer(CUR,true)}
       if(S.combo>=8)gain=Math.round(gain*1.5);
       else if(S.combo>=3)gain=Math.round(gain*1.2);
     }else gain=0;
@@ -530,7 +1032,7 @@ function gradeSessionNote(ok,pct){
   }
   if(S.shields>0){S.shields--;toast('🛡️ 护盾帮你挡了一下，连击保住了！')}
   else S.combo=0;
-  if(!CUR.attempted){SES.wrong++;day.w++}
+  if(!CUR.attempted){SES.wrong++;day.w++;recordParentAnswer(CUR,false)}
   CUR.attempted=true;CUR.retry=(CUR.retry||0)+1;
   save();
   setTimeout(()=>{
@@ -546,7 +1048,9 @@ function submitNoteRecall(){
   const result=noteScore(info.target,given);
   const pct=Math.round(result.score*100);
   const title=pct>=90?'太稳了':pct>=70?'基本记住了':'还要再看一遍';
+  const firstSubmit=!Number.isFinite(NOTE_RECALL_RESULTS[NOTE_RECALL_INDEX]);
   NOTE_RECALL_RESULTS[NOTE_RECALL_INDEX]=pct;
+  if(firstSubmit)recordParentAnswer({id:`note-${SHEET_UI}-${NOTE_RECALL_INDEX}`},pct>=80);
   document.getElementById('note-recall-result').innerHTML=`<div class="note-score ${pct>=90?'good':pct>=70?'mid':'low'}"><b>${pct}%</b><span>${title}</span></div>`;
   const originalBox=document.getElementById('note-original');
   originalBox.style.display='block';
@@ -578,6 +1082,14 @@ function nextNoteRecall(){
   }
   const done=NOTE_RECALL_RESULTS.filter(x=>Number.isFinite(x));
   const avg=done.length?Math.round(done.reduce((s,x)=>s+x,0)/done.length):0;
+  if(!NOTE_RECALL_SESSION_SAVED){
+    const right=done.filter(x=>x>=80).length,wrong=done.length-right;
+    recordParentSession({startedAt:NOTE_RECALL_STARTED,right,wrong,unitHits:{[SHEET_UI]:done.length}});
+    awardCoins(right*2+(wrong===0&&right?6:0),'默写笔记');
+    awardMaterials('默写笔记',{right,wrong,mode:'note'});
+    NOTE_RECALL_SESSION_SAVED=true;
+    save();
+  }
   document.getElementById('note-recall-result').innerHTML=`<div class="note-score ${avg>=90?'good':avg>=70?'mid':'low'}"><b>${avg}%</b><span>全部 ${NOTE_RECALL_PARTS.length} 条完成</span></div>`;
   document.getElementById('note-original').style.display='none';
   document.getElementById('note-next-btn').disabled=true;
@@ -609,6 +1121,8 @@ function openSheet(ui){
 let SES=null,IN_SESSION=false;
 function beginSession(session){
   SES=session;
+  SES.startedAt=Date.now();
+  SES.unitHits={};
   S.combo=0;
   IN_SESSION=true;
   PENDING_BADGES=[];
@@ -711,6 +1225,7 @@ function finishBlindExam(){
     a.ok=ok;
     a.wordOk=wordOk;
     a.ipaOk=ipaOk;
+    recordParentAnswer(a,ok);
     if(ok){right++;day.r++}else{day.w++}
     const st=S.w[a.id];
     if(st){
@@ -734,6 +1249,10 @@ function finishBlindExam(){
   S.blindDone=(S.blindDone||0)+1;
   if(acc>=0.9)S.blindHighScore=(S.blindHighScore||0)+1;
   LAST_BLIND_WRONG=SES.answers.filter(a=>!a.ok).map(a=>a.id);
+  recordParentSession(SES);
+  const coins=awardCoins(sessionCoinReward(SES),'盲答闯关');
+  if(coins)SES.coins=coins;
+  awardMaterials('盲答闯关',{right,wrong:total-right,mode:'blind'});
   save();checkBadges();
   renderBlindResult(acc);
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
@@ -1118,7 +1637,7 @@ function grade(ok){
     let gain=0;
     if(!CUR.counted){
       CUR.counted=true;
-      if(noWrong){SES.right++;day.r++}
+      if(noWrong){SES.right++;day.r++;recordParentAnswer(CUR,true)}
       if(CUR.mode==='learn'){
         S.w[CUR.id]={b:1,d:addDays(1),r:1,wr:0};day.n++;gain=10;
       }else if(CUR.mode==='review'){
@@ -1168,6 +1687,7 @@ function grade(ok){
     }
     if(!CUR.attempted){
       SES.wrong++;day.w++;
+      recordParentAnswer(CUR,false);
       S.wrongPool[CUR.id]=(S.wrongPool[CUR.id]||0)+1;
       if((CUR.mode==='review'||CUR.mode==='revenge')&&S.w[CUR.id]){
         S.w[CUR.id].b=1;S.w[CUR.id].d=addDays(1);S.w[CUR.id].wr=(S.w[CUR.id].wr||0)+1;S.rev++;day.rv++;
@@ -1219,6 +1739,12 @@ function endSession(quit){
   document.getElementById('res-wrong').textContent=SES.wrong;
   document.getElementById('res-xp').textContent='+'+SES.xp;
   if(!quit&&SES.wrong===0&&total>0){confetti();beep('win')}
+  recordParentSession(SES);
+  const coins=quit?0:awardCoins(sessionCoinReward(SES),'学习挑战');
+  if(!quit&&total>0)awardMaterials('学习挑战',{right:SES.right,wrong:SES.wrong,mode:SES.mode});
+  if(!quit&&SES.mode==='challenge'&&total>0)unlockBuildItem('word_monument');
+  if(!quit&&SES.mode==='revenge'&&SES.wrong===0&&total>0)unlockBuildItem('wrong_furnace');
+  if(coins)toast(`获得 ${coins} 金币和建造材料`);
   save();checkBadges();
   go('result');
   document.getElementById('scr-result').classList.add('on');
@@ -1249,6 +1775,204 @@ function renderStats(){
   const pct=learnedCount()/TOTAL_WORDS*100;
   document.getElementById('s-total-fill').style.width=pct+'%';
   document.getElementById('s-total-txt').textContent=`已学 ${learnedCount()} / ${TOTAL_WORDS} 个单词（${Math.round(pct)}%）`;
+}
+function weakUnitRows(){
+  const p=ensureParentStats();
+  const wrongByUnit={};
+  Object.keys(S.wrongPool||{}).forEach(id=>{
+    const ui=unitIndexFromId(id);
+    if(ui!==null)wrongByUnit[ui]=(wrongByUnit[ui]||0)+1;
+  });
+  return UNITS.map((u,ui)=>{
+    const st=p.units[String(ui)]||{answers:0,correct:0,wrong:0,sec:0};
+    const answers=st.answers||0,correct=st.correct||0,wrong=st.wrong||0,pool=wrongByUnit[ui]||0;
+    const acc=answers?correct/answers:null;
+    const learned=unitProgress(ui),total=u.w.length;
+    const lowAcc=answers>=3&&acc<0.8;
+    const lightPractice=learned>0&&answers<3;
+    const score=pool*5+wrong*2+(lowAcc?Math.round((0.8-acc)*20):0)+(lightPractice?1:0);
+    return {ui,u,answers,correct,wrong,pool,acc,learned,total,score,lowAcc,lightPractice};
+  }).filter(x=>x.score>0||x.pool>0).sort((a,b)=>b.score-a.score||b.wrong-a.wrong||a.ui-b.ui).slice(0,6);
+}
+function renderParent(){
+  const p=ensureParentStats();
+  const today=p.days[todayStr()]||{sec:0,sessions:0};
+  document.getElementById('p-time-total').textContent=formatStudyTime(p.totalSec);
+  document.getElementById('p-time-today').textContent=formatStudyTime(today.sec||0);
+  document.getElementById('p-acc').textContent=parentAccuracy(p.correct,p.answers);
+  document.getElementById('p-answers').textContent=p.answers;
+  document.getElementById('p-sessions').textContent=p.sessions;
+  document.getElementById('p-summary').textContent=p.answers?
+    `累计 ${p.answers} 次答题，答对 ${p.correct} 次。学习时长从本版本开始自动累计。`:
+    '还没有新的练习记录。孩子完成一次挑战后，这里会自动更新。';
+  const goff=document.getElementById('parent-gacha-on');
+  if(goff)goff.value=S.set.gachaOn===false?'关':'开';
+  const glim=document.getElementById('parent-gacha-limit');
+  if(glim)glim.value=String(Number.isFinite(+S.set.dailyPullLimit)?+S.set.dailyPullLimit:3);
+  const box=document.getElementById('parent-weak-list');
+  box.innerHTML='';
+  const rows=weakUnitRows();
+  if(!rows.length){
+    box.innerHTML='<div class="empty-parent">暂时没有明显薄弱单元。继续练习后，这里会自动分析。</div>';
+    return;
+  }
+  rows.forEach(x=>{
+    const accText=x.answers?parentAccuracy(x.correct,x.answers):'练习不足';
+    const reasons=[];
+    if(x.pool)reasons.push(`错题池 ${x.pool} 个`);
+    if(x.lowAcc)reasons.push('正确率偏低');
+    if(x.lightPractice)reasons.push('练习次数少');
+    if(x.wrong)reasons.push(`累计错 ${x.wrong} 次`);
+    const pct=x.answers?Math.round(x.correct/x.answers*100):0;
+    const d=document.createElement('div');
+    d.className='weak-row';
+    d.onclick=()=>openSheet(x.ui);
+    d.innerHTML=`<div class="weak-title"><b>Unit ${x.ui+1} · Lesson ${x.u.l}</b><span>${accText}</span></div>
+      <p>${safeText(x.u.t)} · 已学 ${x.learned}/${x.total}</p>
+      <div class="weak-bar"><div style="width:${pct}%"></div></div>
+      <i>${reasons.join(' · ')}</i>`;
+    box.appendChild(d);
+  });
+}
+function awardCoins(amount,reason){
+  amount=Math.max(0,Math.round(amount||0));
+  if(!amount)return 0;
+  S.rewards=normalizeRewards(S.rewards);
+  S.rewards.coins+=amount;
+  const h=S.rewards.gacha.history;
+  h.unshift({type:'coin',amount,reason,date:todayStr()});
+  S.rewards.gacha.history=h.slice(0,30);
+  return amount;
+}
+function sessionCoinReward(session){
+  if(!session)return 0;
+  const total=(session.right||0)+(session.wrong||0);
+  if(!total)return 0;
+  let coins=(session.right||0)*2;
+  if(session.wrong===0)coins+=10;
+  if(session.mode==='blind'&&session.right/total>=0.9)coins+=15;
+  if(session.mode==='revenge'&&session.wrong===0)coins+=8;
+  if(session.mode==='challenge')coins+=6;
+  return coins;
+}
+function equipSkin(id){
+  S.rewards=normalizeRewards(S.rewards);
+  if(!S.rewards.inventory.includes(id)){toast('还没有获得这个皮肤');return}
+  S.rewards.equipped=id;
+  save();applySkin();renderBag();toast('已换上 '+SKIN_MAP[id].name);
+}
+function renderBag(){
+  applySkin();
+  const skin=currentSkin();
+  const hero=document.getElementById('skin-hero');
+  hero.innerHTML=`<div class="skin-preview ${skin.theme}">${skinArt(skin.id,'skin-preview-art')}</div><div><b>${skin.name}</b><i>${skin.rarity} · ${skin.desc}</i><p>金币：${S.rewards.coins}</p></div>`;
+  const grid=document.getElementById('skin-grid');grid.innerHTML='';
+  SKINS.forEach(sk=>{
+    const owned=S.rewards.inventory.includes(sk.id),on=S.rewards.equipped===sk.id;
+    const d=document.createElement('div');
+    d.className='skin-card '+sk.theme+(owned?' owned':'')+(on?' on':'');
+    d.innerHTML=`<div class="skin-avatar">${skinArt(sk.id,'skin-card-art')}</div><b>${sk.name}</b><i>${sk.rarity}</i><p>${sk.desc}</p><button class="sbtn ${on?'':'primary'}" ${owned?'':'disabled'}>${on?'已装备':owned?'装备':'未获得'}</button>`;
+    d.querySelector('button').onclick=()=>equipSkin(sk.id);
+    grid.appendChild(d);
+  });
+}
+function drawSkin(){
+  S.rewards=normalizeRewards(S.rewards);
+  const pity=S.rewards.gacha.pity;
+  const roll=Math.random();
+  let pool;
+  if(pity>=9||roll<0.06)pool=SKINS.filter(s=>s.rarity==='传说');
+  else if(roll<0.24)pool=SKINS.filter(s=>s.rarity==='史诗');
+  else if(roll<0.68)pool=SKINS.filter(s=>s.rarity==='稀有');
+  else pool=SKINS.filter(s=>s.rarity==='普通');
+  return pool[Math.floor(Math.random()*pool.length)]||SKIN_MAP.default;
+}
+function drawGachaReward(){
+  const roll=Math.random();
+  if(roll<0.45){
+    const packs=[
+      {wood:8,grass:5},
+      {stone:6,wood:4},
+      {snow:6,crystal:1},
+      {crystal:3,stardust:1}
+    ];
+    return {type:'material',materials:packs[Math.floor(Math.random()*packs.length)]};
+  }
+  if(roll<0.7){
+    const locked=BUILD_ITEMS.filter(b=>!ensureBuild().unlockedBlocks.includes(b.id)&&!b.unlock&&!b.earned);
+    if(locked.length)return {type:'blueprint',itemId:locked[Math.floor(Math.random()*locked.length)].id};
+  }
+  return {type:'skin',skin:drawSkin()};
+}
+function todayPulls(){
+  S.rewards=normalizeRewards(S.rewards);
+  return S.rewards.gacha.daily[todayStr()]||0;
+}
+function pullGacha(){
+  S.rewards=normalizeRewards(S.rewards);
+  if(S.set.gachaOn===false){toast('家长已关闭抽奖，可以继续建造小岛');return}
+  const limit=Number.isFinite(+S.set.dailyPullLimit)?+S.set.dailyPullLimit:3;
+  if(todayPulls()>=limit){toast('今天抽奖次数用完啦，明天再来');return}
+  if(S.rewards.coins<60){toast('金币不够，完成学习可以获得金币');return}
+  S.rewards.coins-=60;
+  S.rewards.gacha.pulls++;
+  S.rewards.gacha.daily[todayStr()]=todayPulls()+1;
+  const reward=drawGachaReward();
+  if(reward.type==='skin'){
+    const skin=reward.skin;
+    const owned=S.rewards.inventory.includes(skin.id);
+    let bonus=0;
+    if(owned){
+      bonus=skin.rarity==='传说'?45:skin.rarity==='史诗'?30:skin.rarity==='稀有'?18:10;
+      S.rewards.coins+=bonus;
+    }else{
+      S.rewards.inventory.push(skin.id);
+    }
+    S.rewards.gacha.pity=skin.rarity==='传说'?0:S.rewards.gacha.pity+1;
+    S.rewards.gacha.history.unshift({type:'skin',skin:skin.id,duplicate:owned,bonus,date:todayStr()});
+    document.getElementById('gacha-stage').innerHTML=skinArt(skin.id,'skin-gacha-art');
+    toast(owned?`抽到重复${skin.name}，返还 ${bonus} 金币`:`抽到新皮肤：${skin.name}`);
+  }else if(reward.type==='blueprint'){
+    unlockBuildItem(reward.itemId);
+    const item=BUILD_MAP[reward.itemId];
+    S.rewards.gacha.pity++;
+    S.rewards.gacha.history.unshift({type:'blueprint',itemId:item.id,date:todayStr()});
+    document.getElementById('gacha-stage').innerHTML=`<div class="gacha-blueprint">${buildArt(item.id,1)}</div>`;
+    toast('抽到新蓝图：'+item.name);
+  }else{
+    addMaterials(reward.materials);
+    S.rewards.gacha.pity++;
+    S.rewards.gacha.history.unshift({type:'material',materials:reward.materials,reason:'抽奖材料包',date:todayStr()});
+    document.getElementById('gacha-stage').innerHTML='<div class="gacha-material">▦</div>';
+    toast('抽到材料包：'+materialText(reward.materials));
+  }
+  S.rewards.gacha.history=S.rewards.gacha.history.slice(0,30);
+  save();
+  renderGacha();
+}
+function renderGacha(){
+  applySkin();
+  S.rewards=normalizeRewards(S.rewards);
+  const limit=Number.isFinite(+S.set.dailyPullLimit)?+S.set.dailyPullLimit:3;
+  const off=S.set.gachaOn===false;
+  document.getElementById('gacha-info').textContent=off?'家长已关闭抽奖；小岛建造仍可使用':`当前金币 ${S.rewards.coins} · 今日 ${todayPulls()}/${limit} · 已抽 ${S.rewards.gacha.pulls} 次`;
+  document.getElementById('gacha-pity').textContent=`传说保底还差 ${Math.max(0,10-S.rewards.gacha.pity)} 抽`;
+  const box=document.getElementById('gacha-history');box.innerHTML='';
+  const hist=S.rewards.gacha.history.filter(x=>['skin','material','blueprint'].includes(x.type)).slice(0,8);
+  if(!hist.length){box.innerHTML='<div class="empty-parent">还没有抽奖记录。</div>';return}
+  hist.forEach(x=>{
+    const d=document.createElement('div');d.className='gacha-row';
+    if(x.type==='skin'){
+      const sk=SKIN_MAP[SKIN_ALIASES[x.skin]||x.skin]||SKIN_MAP.default;
+      d.innerHTML=`${skinArt(sk.id,'skin-history-art')}<div><b>${sk.name}</b><i>${x.duplicate?`重复返还 ${x.bonus} 金币`:'新皮肤'} · ${x.date}</i></div>`;
+    }else if(x.type==='blueprint'){
+      const item=BUILD_MAP[x.itemId]||BUILD_MAP.wood_house;
+      d.innerHTML=`${buildArt(item.id,1)}<div><b>${item.name} 蓝图</b><i>已解锁 · ${x.date}</i></div>`;
+    }else{
+      d.innerHTML=`<span class="mat-pack">▦</span><div><b>材料包</b><i>${materialText(x.materials)} · ${x.date}</i></div>`;
+    }
+    box.appendChild(d);
+  });
 }
 
 /* ================= 勋章页 ================= */
@@ -1284,16 +2008,10 @@ function renderSettings(){
   document.getElementById('set-sound').value=S.set.sound?'开':'关';
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify(S)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='新概念单词岛进度_'+todayStr()+'.json';a.click();
-  toast('已导出备份文件 📤');
+  exportProfile();
 }
 function importData(inp){
-  const f=inp.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{try{const next=migrateState(JSON.parse(r.result));if(next){S=next;save();toast('导入成功 ✅');renderSettings();renderHome()}else toast('文件格式不对哦')}catch(e){toast('文件格式不对哦')}};
-  r.readAsText(f);inp.value='';
+  importProfileFile(inp);
 }
 function resetAll(){
   ask('确定要<b>清空全部学习进度</b>吗？<br>此操作不能撤销，建议先导出备份！','清空进度',()=>{

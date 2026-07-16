@@ -13,7 +13,11 @@
 
 <!-- ============ HOME ============ -->
 <div class="screen" id="scr-home">
-  <div class="hero"><div class="fox">🦊</div>
+  <div class="profile-strip">
+    <button onclick="go('profiles')"><span id="home-mascot"></span><b id="profile-name-home">小朋友</b><i id="skin-name-home">默认小狐狸</i></button>
+    <div class="coin-pill">🪙 <b id="coin-count">0</b></div>
+  </div>
+  <div class="hero"><div class="fox" id="hero-fox"></div>
     <div><h1 id="greet">你好呀！</h1><p id="subgreet">今天也要加油背单词哦</p></div>
   </div>
   <div class="statchips">
@@ -45,6 +49,29 @@
     <button class="iconbtn" onclick="go('stats')"><span>📊</span>我的统计</button>
     <button class="iconbtn" onclick="go('badges')"><span>🏆</span>勋章墙</button>
     <button class="iconbtn" onclick="go('settings')"><span>⚙️</span>设置</button>
+  </div>
+  <div class="iconrow reward-row">
+    <button class="iconbtn" onclick="go('island')"><span>▦</span>我的小岛</button>
+    <button class="iconbtn" onclick="go('bag')"><span>🎒</span>方块皮肤</button>
+    <button class="iconbtn" onclick="go('gacha')"><span>🎁</span>抽奖屋</button>
+  </div>
+  <button class="parentbtn" onclick="go('parent')"><span>👨‍👩‍👧</span><b>家长模式</b><i>查看学习时长、正确率、薄弱单元</i></button>
+</div>
+
+<!-- ============ PROFILES ============ -->
+<div class="screen" id="scr-profiles">
+  <div class="topbar"><button class="back" onclick="go('home')">←</button><h2>孩子账户</h2></div>
+  <div class="card">
+    <div class="profile-actions">
+      <button class="sbtn primary" onclick="createProfile()">＋ 新建账户</button>
+      <button class="sbtn" onclick="renameProfile()">改昵称</button>
+    </div>
+    <div id="profile-list" class="profile-list"></div>
+  </div>
+  <div class="card">
+    <div class="setrow" style="cursor:pointer" onclick="exportProfile()"><span>📤 导出当前孩子存档</span><span>›</span></div>
+    <div class="setrow" style="cursor:pointer" onclick="document.getElementById('profile-imp').click()"><span>📥 导入孩子存档</span><span>›</span></div>
+    <input type="file" id="profile-imp" accept=".json" style="display:none" onchange="importProfileFile(this)">
   </div>
 </div>
 
@@ -209,6 +236,71 @@
   </div>
 </div>
 
+<!-- ============ PARENT ============ -->
+<div class="screen" id="scr-parent">
+  <div class="topbar"><button class="back" onclick="go('home')">←</button><h2>家长模式</h2></div>
+  <div class="card parent-overview">
+    <div class="parent-head"><b>学习概览</b><span id="p-summary"></span></div>
+    <div class="parent-grid">
+      <div><b id="p-time-total">0分钟</b><i>累计学习时长</i></div>
+      <div><b id="p-time-today">0分钟</b><i>今日学习时长</i></div>
+      <div><b id="p-acc">-</b><i>总体正确率</i></div>
+      <div><b id="p-answers">0</b><i>累计答题</i></div>
+      <div><b id="p-sessions">0</b><i>练习次数</i></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="parent-section-title"><b>需要关注的单元</b><span>点开可直接进入对应课文</span></div>
+    <div id="parent-weak-list"></div>
+  </div>
+  <div class="card">
+    <div class="setrow" style="cursor:pointer" onclick="go('profiles')"><span>👨‍👩‍👧 管理孩子账户</span><span>›</span></div>
+    <div class="setrow" style="cursor:pointer" onclick="exportProfile()"><span>📤 导出当前孩子存档</span><span>›</span></div>
+    <div class="setrow"><span>🎁 抽奖屋</span><select id="parent-gacha-on" onchange="S.set.gachaOn=this.value==='开';save();renderParent()"><option>开</option><option>关</option></select></div>
+    <div class="setrow"><span>每日抽奖次数</span><select id="parent-gacha-limit" onchange="S.set.dailyPullLimit=+this.value;save();renderParent()"><option>1</option><option>2</option><option>3</option><option>5</option></select></div>
+  </div>
+</div>
+
+<!-- ============ BAG ============ -->
+<div class="screen" id="scr-bag">
+  <div class="topbar"><button class="back" onclick="go('home')">←</button><h2>我的背包 🎒</h2></div>
+  <div class="card skin-hero" id="skin-hero"></div>
+  <div class="skin-grid" id="skin-grid"></div>
+</div>
+
+<!-- ============ GACHA ============ -->
+<div class="screen" id="scr-gacha">
+  <div class="topbar"><button class="back" onclick="go('home')">←</button><h2>抽奖屋 🎁</h2></div>
+  <div class="card gacha-card">
+    <div class="gacha-stage" id="gacha-stage"><div class="gacha-egg"></div></div>
+    <h2>方块宝箱</h2>
+    <p id="gacha-info"></p>
+    <button class="sbtn primary" style="width:100%;margin-top:12px" onclick="pullGacha()">花 60 金币开一次</button>
+  </div>
+  <div class="card">
+    <div class="parent-section-title"><b>最近宝箱记录</b><span id="gacha-pity"></span></div>
+    <div id="gacha-history" class="gacha-history"></div>
+  </div>
+</div>
+
+<!-- ============ ISLAND ============ -->
+<div class="screen" id="scr-island">
+  <div class="topbar"><button class="back" onclick="go('home')">←</button><h2>我的英语方块岛</h2></div>
+  <div class="card island-card">
+    <div class="parent-section-title"><b>材料背包</b><span>学习后会自动获得材料</span></div>
+    <div class="material-bar" id="material-bar"></div>
+    <button class="sbtn primary starter-pack" id="build-starter-claim" onclick="claimStarterBuildPack()">领取新手建造礼包</button>
+  </div>
+  <div class="island-wrap">
+    <div class="island-grid" id="island-grid"></div>
+  </div>
+  <div class="card" id="build-detail" style="display:none"></div>
+  <div class="card">
+    <div class="parent-section-title"><b>建造工具</b><span>选一个，再点小岛格子</span></div>
+    <div class="build-inventory" id="build-inventory"></div>
+  </div>
+</div>
+
 <!-- ============ BADGES ============ -->
 <div class="screen" id="scr-badges">
   <div class="topbar"><button class="back" onclick="go('home')">←</button><h2>勋章墙 🏆</h2></div>
@@ -228,8 +320,8 @@
       <select id="set-sound" onchange="S.set.sound=this.value=='开';save()"><option>开</option><option>关</option></select></div>
   </div>
   <div class="card">
-    <div class="setrow" style="cursor:pointer" onclick="exportData()"><span>📤 导出学习进度（备份）</span><span>›</span></div>
-    <div class="setrow" style="cursor:pointer" onclick="document.getElementById('imp').click()"><span>📥 导入学习进度</span><span>›</span></div>
+    <div class="setrow" style="cursor:pointer" onclick="exportData()"><span>📤 导出当前孩子存档</span><span>›</span></div>
+    <div class="setrow" style="cursor:pointer" onclick="document.getElementById('imp').click()"><span>📥 导入孩子存档</span><span>›</span></div>
     <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(this)">
     <div class="setrow danger" style="cursor:pointer;border:none" onclick="resetAll()"><span>🗑️ 清空全部进度</span><span>›</span></div>
   </div>
